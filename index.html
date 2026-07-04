@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Wedding Ledger — Shared Planning Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+:root{
+  --paper:#ECE8DE; --paper-raised:#F6F3EA; --ink:#211F1A; --ink-soft:#5A564C; --line:#D8D2C2;
+  --uk:#4B5945; --uk-soft:#DDE3D6; --sl:#B5811E; --sl-soft:#F0E1BC;
+  --flag:#A64B3B; --flag-soft:#F3DBD4; --win:#3D6B3D; --win-soft:#DCEBDA; --info:#3B5B7A; --info-soft:#DCE6ED;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:1180px;margin:0;padding:0 32px 90px;}
+h1,h2,h3{font-family:'Fraunces',serif;font-weight:480;margin:0;}
+button{font-family:'Inter';cursor:pointer;}
+
+/* ---- auth screens ---- */
+.auth-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.auth-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:18px;padding:40px 38px;max-width:420px;width:100%;}
+.auth-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;text-align:center;}
+.auth-title{font-size:28px;text-align:center;margin-bottom:6px;}
+.auth-sub{font-size:13px;color:var(--ink-soft);text-align:center;margin-bottom:26px;line-height:1.5;}
+.auth-tabs{display:flex;gap:6px;margin-bottom:20px;background:var(--paper);border-radius:10px;padding:4px;}
+.auth-tab{flex:1;padding:9px;border:none;background:none;border-radius:8px;font-size:13px;font-weight:600;color:var(--ink-soft);}
+.auth-tab.active{background:var(--ink);color:var(--paper-raised);}
+.form-row{margin-bottom:14px;}
+.form-row label{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);display:block;margin-bottom:6px;}
+.form-row input,.form-row textarea,.form-row select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-family:'Inter';font-size:13.5px;color:var(--ink);}
+.btn{font-size:13px;font-weight:600;padding:11px 16px;border-radius:9px;border:1px solid var(--ink);background:var(--ink);color:var(--paper-raised);white-space:nowrap;width:100%;}
+.btn.ghost{background:transparent;color:var(--ink);}
+.btn.small{padding:6px 11px;font-size:12px;border-radius:7px;width:auto;}
+.btn.danger{border-color:var(--flag);color:var(--flag);background:transparent;}
+.btn.export{border-color:var(--win);color:var(--win);background:transparent;}
+.btn.export:hover{background:var(--win-soft);}
+.auth-msg{font-size:12.5px;border-radius:9px;padding:10px 14px;margin-bottom:14px;}
+.auth-msg.err{background:var(--flag-soft);color:var(--flag);}
+.auth-msg.ok{background:var(--win-soft);color:var(--win);}
+.auth-msg.info{background:var(--info-soft);color:var(--info);}
+.wedding-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+.wedding-choice button{padding:14px 10px;border-radius:10px;border:1px solid var(--line);background:var(--paper);font-size:12.5px;font-weight:600;color:var(--ink-soft);text-align:center;}
+.wedding-choice button.active{background:var(--ink);color:var(--paper-raised);border-color:var(--ink);}
+.invite-display{background:var(--paper);border:1px dashed var(--ink-soft);border-radius:10px;padding:16px;text-align:center;margin-top:16px;}
+.invite-code{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:700;letter-spacing:.1em;margin:8px 0;}
+.sync-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--win);margin-right:6px;}
+.sync-dot.off{background:var(--flag);}
+
+/* ---- shell ---- */
+.app-shell{display:flex;min-height:100vh;align-items:flex-start;}
+.sidebar{width:250px;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--paper-raised);border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;padding:28px 20px 22px;}
+.side-top{display:flex;flex-direction:column;}
+.main-area{flex:1;min-width:0;}
+header{padding:0;text-align:left;}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;}
+h1{font-size:24px;letter-spacing:-.01em;margin-bottom:0;line-height:1.1;}
+h1 em{font-style:italic;font-weight:340;color:var(--ink-soft);}
+.sync-status{font-size:11px;color:var(--ink-soft);margin-top:8px;}
+.headtools{display:flex;flex-direction:column;gap:8px;}
+.headtools button{font-size:11.5px;font-weight:600;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);text-align:left;width:100%;}
+.headtools button:hover{border-color:var(--ink-soft);}
+.side-nav{display:flex;flex-direction:column;gap:3px;margin-top:6px;}
+.mtab{padding:11px 14px;font-size:13.5px;font-weight:600;color:var(--ink-soft);border:none;background:none;border-radius:9px;text-align:left;}
+.mtab.active{color:var(--paper-raised);background:var(--ink);}
+.mtab:not(.active):hover{background:var(--paper);color:var(--ink);}
+
+.toolbar{position:sticky;top:0;z-index:40;background:rgba(236,232,222,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:14px 24px;}
+.toolbar-inner{max-width:1180px;margin:0;display:flex;flex-wrap:wrap;gap:16px 26px;align-items:flex-end;}
+.ctl{display:flex;flex-direction:column;gap:6px;min-width:120px;}
+.ctl label{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);display:flex;justify-content:space-between;}
+.ctl .val{color:var(--ink);font-weight:600;}
+input[type=range]{-webkit-appearance:none;width:100%;height:3px;border-radius:2px;background:var(--line);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--ink);cursor:pointer;border:2px solid var(--paper-raised);}
+.pillrow{display:flex;gap:6px;}
+.pill{font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:var(--paper-raised);color:var(--ink-soft);width:auto;}
+.pill.active{background:var(--ink);color:var(--paper-raised);border-color:var(--ink);}
+.chk{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;user-select:none;}
+.chk input{accent-color:var(--ink);width:14px;height:14px;}
+
+.section-head{display:flex;justify-content:space-between;align-items:center;margin:26px 0 14px;flex-wrap:wrap;gap:10px;}
+.subtabs{display:flex;gap:8px;flex-wrap:wrap;}
+.searchbox{position:relative;min-width:220px;flex:1;max-width:320px;}
+.searchbox input{width:100%;padding:9px 12px 9px 32px;border:1px solid var(--line);border-radius:20px;background:var(--paper-raised);font-size:13px;font-family:'Inter';color:var(--ink);}
+.searchbox::before{content:'⌕';position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:14px;}
+.result-count{font-size:12px;color:var(--ink-soft);margin:6px 0 0;}
+
+.keybox{display:flex;flex-wrap:wrap;gap:14px 22px;background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:18px 0;font-size:12px;color:var(--ink-soft);align-items:center;}
+.keybox .kitem{display:flex;align-items:center;gap:7px;}
+.keybox .dot{width:11px;height:11px;border-radius:50%;}
+.keybox .swrect{width:14px;height:14px;border-radius:4px;}
+
+.dcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:16px;}
+.dcard{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:18px 20px;transition:.15s;}
+.dcard.clickable{cursor:pointer;}
+.dcard.clickable:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(33,31,26,.08);border-color:var(--ink-soft);}
+.dcard .dlabel{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;}
+.dcard .dval{font-family:'Fraunces',serif;font-size:26px;}
+.dcard .dsub{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+.progress-track{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:10px;}
+.progress-fill{height:100%;background:var(--ink);}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+.card{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:17px 19px;cursor:pointer;transition:.15s;position:relative;display:flex;flex-direction:column;}
+.card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(33,31,26,.08);}
+.card.flagged{background:var(--flag-soft);border-color:#E0BCB2;}
+.card-cmp{position:absolute;top:12px;right:12px;width:20px;height:20px;border:1.5px solid var(--ink-soft);border-radius:5px;background:var(--paper);z-index:2;}
+.card-cmp.on{background:var(--ink);border-color:var(--ink);}
+.card-cmp.on::after{content:'✓';color:var(--paper-raised);font-size:13px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.card-loc{font-size:12px;color:var(--ink-soft);margin:3px 0 10px;}
+.card-name{font-family:'Fraunces',serif;font-size:17px;line-height:1.2;padding-right:24px;}
+.card-cost{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:19px;margin-top:auto;padding-top:10px;}
+.card-cost .per{font-size:11px;font-weight:400;color:var(--ink-soft);display:block;margin-top:2px;}
+.card-scores{display:flex;gap:10px;margin-top:8px;font-size:11px;color:var(--ink-soft);}
+.score-chip{font-family:'IBM Plex Mono',monospace;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:2px 7px;}
+.badge{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:20px;display:inline-block;margin-top:8px;width:fit-content;}
+.badge.sourced{background:var(--uk-soft);color:#354430;}
+.badge.estimated{background:#E8E2D2;color:var(--ink-soft);}
+.badge.pending{background:var(--flag-soft);color:var(--flag);}
+.badge.custom{background:var(--sl-soft);color:#6B4E15;}
+.badge.needsresearch{background:var(--info-soft);color:var(--info);}
+
+.tablewrap{overflow-x:auto;margin-top:6px;border:1px solid var(--line);border-radius:12px;}
+.vtable{border-collapse:collapse;width:100%;min-width:1080px;background:var(--paper-raised);}
+.vtable th{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:9px 12px 4px;border-bottom:1px solid var(--line);background:var(--paper);white-space:nowrap;}
+.vtable td{padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:middle;}
+.vtable tr.rowflagged td{background:var(--flag-soft);}
+.vtable tr.datarow{cursor:pointer;}
+.vtable tr.datarow:hover td{background:#EFEAD9;}
+.vtable tr.rowflagged:hover td{background:#EFD8CF;}
+.vtable td.namecell{font-family:'Fraunces',serif;font-size:14px;}
+.vtable td.numcell{font-family:'IBM Plex Mono',monospace;font-size:12px;}
+.filterrow th{padding:6px 8px 10px;background:var(--paper);}
+.filterrow input,.filterrow select{width:100%;font-size:11.5px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:var(--paper-raised);font-family:'Inter';}
+.filterrow input[type=number]{width:70px;}
+.clear-filters{font-size:11px;color:var(--flag);background:none;border:none;font-weight:700;white-space:nowrap;}
+
+.detail{background:var(--paper-raised);border:1px solid var(--line);border-radius:16px;padding:30px 34px;margin-top:20px;}
+.back-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink-soft);background:none;border:none;margin-bottom:16px;width:auto;}
+.detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;}
+.detail-title{font-size:30px;max-width:600px;}
+.detail-loc{font-size:14px;color:var(--ink-soft);margin-top:6px;}
+.detail-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.flag-banner{background:var(--flag-soft);border:1px solid #E0BCB2;color:var(--flag);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;margin:18px 0;}
+.info-banner{background:var(--info-soft);border:1px solid #BBD0DE;color:var(--info);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;margin:18px 0;}
+.detail-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:28px;margin-top:26px;}
+@media(max-width:820px){.detail-grid{grid-template-columns:1fr;}}
+.breakdown-title{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:12px;}
+.stack{height:34px;border-radius:8px;overflow:hidden;display:flex;margin-bottom:8px;}
+.stack div{display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:600;font-family:'IBM Plex Mono',monospace;overflow:hidden;white-space:nowrap;cursor:pointer;}
+.seg-hire{background:#3B4A38;}.seg-catering{background:#6E8367;}.seg-extras{background:#B7C4AE;color:#3B4A38 !important;}
+.sl .seg-hire{background:#7A5510;}.sl .seg-catering{background:#B5811E;}.sl .seg-extras{background:#E4C784;color:#5A3F0C !important;}
+.legend{display:flex;gap:16px;font-size:11.5px;color:var(--ink-soft);margin-bottom:22px;flex-wrap:wrap;}
+.legend span{display:flex;align-items:center;gap:6px;}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+.cost-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;}
+.cost-table tr{transition:background .2s;}
+.cost-table tr.pulse{background:var(--win-soft) !important;}
+.cost-table td{padding:8px 0;border-bottom:1px solid var(--line);}
+.cost-table td:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;}
+.cost-table tr.total td{font-weight:700;border-bottom:none;padding-top:12px;}
+.basis-note{font-size:11.5px;color:var(--ink-soft);font-style:italic;margin-top:4px;}
+.rank-block{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
+.rank-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.rank-name{font-size:13px;font-weight:600;}
+.rank-score{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;}
+.rank-slider{width:100%;margin-top:6px;}
+.claude-note{font-size:12.5px;color:var(--ink-soft);margin-top:6px;line-height:1.4;}
+.readonly-note{font-size:11.5px;color:var(--ink-soft);font-style:italic;margin-top:6px;}
+.pc-block{margin-top:20px;}
+.pc-list{list-style:none;padding:0;margin:8px 0 0;}
+.pc-list li{font-size:13.5px;line-height:1.5;padding:7px 0 7px 20px;position:relative;border-bottom:1px solid var(--line);}
+.pc-list li:last-child{border-bottom:none;}
+.pc-list.pro li::before{content:'+';position:absolute;left:0;color:var(--win);font-weight:700;}
+.pc-list.con li::before{content:'–';position:absolute;left:0;color:var(--flag);font-weight:700;}
+
+.tray{position:fixed;bottom:0;left:250px;right:0;background:var(--ink);color:var(--paper-raised);padding:14px 24px;display:none;z-index:60;}
+.tray.show{display:block;}
+.tray-inner{max-width:1180px;margin:0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.tray-chip{background:rgba(255,255,255,.12);border-radius:20px;padding:6px 8px 6px 14px;font-size:12.5px;display:flex;align-items:center;gap:8px;}
+.tray-chip button{background:none;border:none;color:inherit;font-size:14px;line-height:1;opacity:.7;width:auto;}
+.tray-spacer{flex:1;}
+.cmp-table-wrap{overflow-x:auto;margin-top:20px;}
+.cmp-table{border-collapse:collapse;width:100%;min-width:600px;}
+.cmp-table th,.cmp-table td{padding:12px 16px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;}
+.cmp-table th{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);}
+.cmp-table th.venue-col{font-family:'Fraunces',serif;font-size:16px;text-transform:none;letter-spacing:0;color:var(--ink);min-width:170px;}
+.cmp-table th.venue-col b{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);}
+.cmp-table td.metric-label{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);white-space:nowrap;}
+.cmp-table td.win{background:var(--win-soft);font-weight:700;color:var(--win);border-radius:6px;}
+.cmp-table td.val{font-family:'IBM Plex Mono',monospace;font-size:13.5px;}
+.remove-col{background:none;border:none;color:var(--flag);font-size:12px;font-weight:600;width:auto;}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(33,31,26,.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--paper-raised);border-radius:16px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;padding:30px 32px;}
+.modal.wide{max-width:780px;}
+.modal h2{font-size:22px;margin-bottom:6px;}
+.modal .modal-sub{font-size:13px;color:var(--ink-soft);margin-bottom:18px;}
+.form-row textarea{resize:vertical;min-height:56px;}
+.form-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+.modal-actions .btn{width:auto;}
+.addmode-row{display:flex;gap:8px;margin-bottom:18px;}
+.addmode-btn{flex:1;padding:10px;border-radius:9px;border:1px solid var(--line);background:var(--paper);font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+.addmode-btn.active{background:var(--ink);color:var(--paper-raised);border-color:var(--ink);}
+
+.plain-table{width:100%;border-collapse:collapse;background:var(--paper-raised);border-radius:12px;overflow:hidden;margin-top:10px;}
+.plain-table th{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:9px 14px 4px;border-bottom:1px solid var(--line);background:var(--paper);}
+.plain-table td{padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px;}
+.plain-table input,.plain-table select{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:5px 8px;font-size:13px;font-family:'Inter';width:100%;}
+.plain-table tr.filterrow2 td{padding:6px 10px 10px;background:var(--paper);}
+.tag{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;}
+.tag.p1{background:var(--uk-soft);color:#354430;}
+.tag.p2{background:var(--sl-soft);color:#6B4E15;}
+.tag.both{background:var(--info-soft);color:var(--info);}
+.rmbtn{background:none;border:none;color:var(--flag);font-size:12px;font-weight:700;width:auto;}
+
+.checklist-group{margin-bottom:26px;}
+.checklist-group h3{font-size:16px;margin-bottom:4px;}
+.cl-progress{font-size:12px;color:var(--ink-soft);margin-bottom:10px;}
+.cl-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;}
+.cl-item input[type=checkbox]{width:17px;height:17px;accent-color:var(--ink);}
+.cl-item.done span{text-decoration:line-through;color:var(--ink-soft);}
+.cl-item .rmbtn{margin-left:auto;}
+
+.empty{text-align:center;padding:50px 20px;color:var(--ink-soft);font-size:14px;}
+footer{text-align:center;margin-top:50px;padding-top:22px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-soft);}
+
+@media (max-width:860px){
+  .app-shell{flex-direction:column;}
+  .sidebar{width:100%;height:auto;position:relative;flex-direction:row;align-items:center;padding:16px 18px;gap:16px;overflow-x:auto;}
+  .side-top{flex-direction:row;align-items:center;flex:1;gap:18px;}
+  .side-nav{flex-direction:row;margin-top:0;overflow-x:auto;}
+  .headtools{flex-direction:row;}
+  .wrap{padding:0 18px 90px;}
+  .tray{left:0 !important;}
+}
+</style>
+</head>
+<body>
+
+<!-- ====================== CONFIG NOTICE ====================== -->
+<div id="configNotice" style="display:none;background:#A64B3B;color:#fff;padding:14px 24px;font-size:13px;text-align:center;">
+  ⚠ Add your Supabase project URL and anon key at the top of the &lt;script&gt; block (search for SUPABASE_URL) before this will work.
+</div>
+
+<!-- ====================== AUTH SHELL ====================== -->
+<div class="auth-shell" id="authShell">
+  <div class="auth-card">
+    <div class="auth-eyebrow">The Wedding Ledger</div>
+    <h1 class="auth-title" id="authTitle">Welcome</h1>
+    <p class="auth-sub" id="authSub">Sign in to plan your wedding together, in sync.</p>
+    <div id="authMsg"></div>
+
+    <div id="loginArea">
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-authtab="login">Log in</button>
+        <button class="auth-tab" data-authtab="signup">Sign up</button>
+      </div>
+      <div class="form-row"><label>Email</label><input id="auth_email" type="email" placeholder="you@example.com"></div>
+      <div class="form-row"><label>Password</label><input id="auth_password" type="password" placeholder="••••••••"></div>
+      <div class="form-row" id="displayNameRow" style="display:none;"><label>Your first name</label><input id="auth_displayname" placeholder="e.g. Mithun"></div>
+      <button class="btn" id="authSubmitBtn">Log in</button>
+    </div>
+
+    <div id="weddingArea" style="display:none;">
+      <p style="font-size:13px;color:var(--ink-soft);text-align:center;margin-bottom:16px;">You're logged in — now link to your shared wedding plan.</p>
+      <div class="wedding-choice">
+        <button class="active" data-wchoice="create">Start a new plan</button>
+        <button data-wchoice="join">Join with a code</button>
+      </div>
+      <div id="createWeddingArea">
+        <div class="form-row"><label>Your first name</label><input id="w_name1" placeholder="e.g. Mithun"></div>
+        <button class="btn" id="createWeddingBtn">Create our wedding plan</button>
+      </div>
+      <div id="joinWeddingArea" style="display:none;">
+        <div class="form-row"><label>Invite code (from your partner)</label><input id="w_code" placeholder="e.g. 7F3K2A" style="text-transform:uppercase;"></div>
+        <div class="form-row"><label>Your first name</label><input id="w_name2" placeholder="e.g. Gayathma"></div>
+        <button class="btn" id="joinWeddingBtn">Join the plan</button>
+      </div>
+      <div class="invite-display" id="inviteDisplay" style="display:none;">
+        <div style="font-size:12px;color:var(--ink-soft);">Share this code with your partner</div>
+        <div class="invite-code" id="inviteCodeShown"></div>
+        <button class="btn small ghost" id="continueToApp">Continue to the app →</button>
+      </div>
+    </div>
+    <button class="btn ghost small" id="authSignOutBtn" style="display:none;margin-top:14px;">Sign out</button>
+  </div>
+</div>
+
+<!-- ====================== MAIN APP ====================== -->
+<div class="app-shell" id="appShell" style="display:none;">
+<aside class="sidebar">
+  <div class="side-top">
+    <header>
+      <div class="eyebrow" id="coupleEyebrow">The Wedding Ledger</div>
+      <h1>The Wedding <em>Ledger</em></h1>
+      <div class="sync-status" id="syncStatus"><span class="sync-dot" id="syncDot"></span>Synced</div>
+    </header>
+    <nav class="side-nav">
+      <button class="mtab active" data-main="dashboard">Dashboard</button>
+      <button class="mtab" data-main="venues">Venues</button>
+      <button class="mtab" data-main="guests">Guest List</button>
+      <button class="mtab" data-main="budget">Budget</button>
+      <button class="mtab" data-main="checklist">Checklist</button>
+      <button class="mtab" data-main="settings">Settings</button>
+    </nav>
+  </div>
+  <div class="headtools">
+    <button id="signOutBtn">⎋ Sign out</button>
+  </div>
+</aside>
+
+<main class="main-area">
+
+<div class="toolbar" id="venueToolbar" style="display:none;">
+  <div class="toolbar-inner">
+    <div class="ctl"><label>UK guests <span class="val" id="ukGuestsVal">150</span></label><input type="range" id="ukGuests" min="80" max="220" value="150" step="5"></div>
+    <div class="ctl"><label>SL guests <span class="val" id="slGuestsVal">100</span></label><input type="range" id="slGuests" min="40" max="180" value="100" step="5"></div>
+    <div class="ctl"><label>Season</label><div class="pillrow"><button class="pill" data-season="low">Low</button><button class="pill active" data-season="peak">Peak</button></div></div>
+    <div class="ctl"><label>Reality uplift <span class="val" id="upliftVal">+15%</span></label><input type="range" id="uplift" min="0" max="40" value="15" step="5"></div>
+    <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="showFlagged" checked> Show flagged venues</label></div>
+    <div class="ctl" style="margin-left:auto;"><label style="visibility:hidden">.</label><button class="btn" id="addBtn" style="width:auto;">+ Add venue</button></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="tab-dashboard"></div>
+
+  <div id="tab-venues" style="display:none;">
+    <div id="listView">
+      <div class="keybox" id="keybox"></div>
+      <div class="section-head">
+        <div class="subtabs">
+          <button class="pill vtab active" data-vtab="all">All</button>
+          <button class="pill vtab" data-vtab="uk">United Kingdom</button>
+          <button class="pill vtab" data-vtab="sl">Sri Lanka</button>
+        </div>
+        <div class="searchbox"><input id="venueSearch" placeholder="Search venue name or location…"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div class="pillrow">
+            <button class="pill viewmode" data-viewmode="tiles">Tiles</button>
+            <button class="pill viewmode active" data-viewmode="rows">Rows</button>
+          </div>
+          <select class="btn ghost small" id="sortSelect" style="border-color:var(--line);width:auto;">
+            <option value="cost">Sort: cost, low→high</option>
+            <option value="claude">Sort: our suggested score</option>
+            <option value="p1">Sort: Partner 1's rank</option>
+            <option value="p2">Sort: Partner 2's rank</option>
+            <option value="name">Sort: name, A→Z</option>
+          </select>
+          <button class="btn export small" id="exportVenuesBtn">⬇ Excel</button>
+        </div>
+      </div>
+      <p class="result-count" id="venueResultCount"></p>
+      <div id="researchQueue"></div>
+      <div id="grid" class="grid" style="display:none;"></div>
+      <div id="tableViewWrap"></div>
+      <div id="loadSeedArea" style="display:none;margin-top:20px;text-align:center;">
+        <button class="btn" style="width:auto;" id="loadSeedBtn">Load Mithun &amp; Gayathma's researched shortlist (29 venues)</button>
+      </div>
+    </div>
+    <div id="detailView" style="display:none;"></div>
+    <div id="compareView" style="display:none;"></div>
+  </div>
+
+  <div id="tab-guests" style="display:none;"></div>
+  <div id="tab-budget" style="display:none;"></div>
+  <div id="tab-checklist" style="display:none;"></div>
+  <div id="tab-settings" style="display:none;"></div>
+
+  <footer>Costs researched July 2026. "Sourced" = from real quotes/notes. "Estimated" = modelled from comparable venues — confirm directly before booking. Flights and Sri Lanka guest accommodation are never included.</footer>
+</div>
+</main>
+</div>
+
+<div class="tray" id="tray"><div class="tray-inner" id="trayInner"></div></div>
+
+<!-- ADD/EDIT VENUE MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal wide">
+    <h2 id="modalTitle">Add a venue</h2>
+    <p class="modal-sub" id="modalSub">Choose how much detail you have right now.</p>
+    <div class="addmode-row" id="addModeRow">
+      <button class="addmode-btn active" data-mode="quick">Quick add — name only<br><small>(we'll flag it for research)</small></button>
+      <button class="addmode-btn" data-mode="full">I have full details / a quote</button>
+    </div>
+    <div class="form-row"><label>Venue name</label><input id="f_name" placeholder="e.g. Middlethorpe Hall"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Country</label><select id="f_country"><option value="uk">United Kingdom</option><option value="sl">Sri Lanka</option></select></div>
+      <div class="form-row"><label>City / region</label><input id="f_city" placeholder="e.g. York"></div>
+    </div>
+    <div id="fullFields">
+      <div class="form-grid2">
+        <div class="form-row"><label id="f_capLabel">Max capacity</label><input id="f_cap" type="number" placeholder="150"></div>
+        <div class="form-row"><label>Travel time from Colombo (Sri Lanka only)</label><input id="f_travel" placeholder="e.g. 1.5–2 hrs"></div>
+      </div>
+      <div class="form-row"><label>Guest count this pricing is based on</label><input id="f_baseGuests" type="number" placeholder="150"></div>
+      <div class="form-grid2">
+        <div class="form-row"><label>Venue hire — low season (£)</label><input id="f_hireLow" type="number"></div>
+        <div class="form-row"><label>Venue hire — peak season (£)</label><input id="f_hireHigh" type="number"></div>
+      </div>
+      <div class="form-grid2">
+        <div class="form-row"><label>Catering — low season (£)</label><input id="f_catLow" type="number"></div>
+        <div class="form-row"><label>Catering — peak season (£)</label><input id="f_catHigh" type="number"></div>
+      </div>
+      <div class="form-grid2">
+        <div class="form-row"><label>Extras (corkage/accom./service, £) — low</label><input id="f_extLow" type="number" value="0"></div>
+        <div class="form-row"><label>Extras — peak</label><input id="f_extHigh" type="number" value="0"></div>
+      </div>
+      <div class="form-row"><label>Pros</label><textarea id="f_pros" placeholder="One or two sentences"></textarea></div>
+      <div class="form-row"><label>Cons</label><textarea id="f_cons" placeholder="One or two sentences"></textarea></div>
+      <div class="form-row"><label>Notes</label><textarea id="f_notes" placeholder="Anything else worth remembering"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="cancelAdd">Cancel</button>
+      <button class="btn" id="saveAdd">Save venue</button>
+    </div>
+  </div>
+</div>
+
+<!-- GUEST MODAL -->
+<div class="modal-overlay" id="guestOverlay">
+  <div class="modal">
+    <h2>Add a guest</h2>
+    <div class="form-row"><label>Name</label><input id="g_name" placeholder="Full name"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Whose guest?</label><select id="g_side"></select></div>
+      <div class="form-row"><label>Likely to attend</label><select id="g_attend"><option value="both">Both weddings</option><option value="uk">UK only</option><option value="sl">Sri Lanka only</option><option value="unsure">Not sure yet</option></select></div>
+    </div>
+    <div class="form-row"><label>Contact (email or phone)</label><input id="g_contact" placeholder="optional"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="cancelGuest">Cancel</button>
+      <button class="btn" id="saveGuest">Add guest</button>
+    </div>
+  </div>
+</div>
+
+<!-- BUDGET ITEM MODAL -->
+<div class="modal-overlay" id="budgetOverlay">
+  <div class="modal">
+    <h2>Add budget line</h2>
+    <div class="form-row"><label>Category</label><input id="b_cat" placeholder="e.g. Photography"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Which wedding?</label><select id="b_country"><option value="shared">Shared / both</option><option value="uk">UK</option><option value="sl">Sri Lanka</option></select></div>
+      <div class="form-row"><label>Planned (£)</label><input id="b_planned" type="number"></div>
+    </div>
+    <div class="form-row"><label>Actual spent so far (£)</label><input id="b_actual" type="number" value="0"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="cancelBudget">Cancel</button>
+      <button class="btn" id="saveBudget">Add line</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHECKLIST ITEM MODAL -->
+<div class="modal-overlay" id="taskOverlay">
+  <div class="modal">
+    <h2>Add a task</h2>
+    <div class="form-row"><label>Task</label><input id="t_task" placeholder="e.g. Book henna artist"></div>
+    <div class="form-row"><label>Timeframe</label>
+      <select id="t_group">
+        <option>12+ months before</option><option>9–12 months before</option><option>6–9 months before</option>
+        <option>3–6 months before</option><option>1–3 months before</option><option>Final month</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="cancelTask">Cancel</button>
+      <button class="btn" id="saveTask">Add task</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — replace these two lines with your own Supabase
+   project values (Project Settings → API in your Supabase dashboard)
+   ============================================================ */
+const SUPABASE_URL = 'https://khwcatuyvzhffgjaatuk.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtod2NhdHV5dnpoZmZnamFhdHVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNzgxMjcsImV4cCI6MjA5ODc1NDEyN30.VKytHtjagWrCmqSeaWzVRrFrHjNrQ7Ml8ZCcnziLml8';
+
+const configured = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
+if(!configured) document.getElementById('configNotice').style.display='block';
+const sb = configured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/* ================= SEED VENUE DATA (loaded on demand into Supabase) ================= */
+const SEED_UK = [
+ {name:"De Vere Tortworth Court",country:"uk",city:"Wotton-under-Edge, S. Gloucestershire",cap:280,baseGuests:150,hireLow:4500,hireHigh:5500,catLow:15750,catHigh:19250,extLow:0,extHigh:0,src:"sourced",claude:7.5,claudeNote:"Safest choice: huge capacity and on-site rooms for 150+ guests, but the least distinctive atmosphere on this list.",pros:"Huge Westminster Suite easily fits 150+; 201 hotel bedrooms on-site; polished all-inclusive package; spa for guests.",cons:"Corporate-hotel feel rather than intimate/characterful; Orangery (the prettiest room) only fits 100.",notes:"Pricing is a genuine all-inclusive £150pp package (hire+food bundled) — the hire/catering split shown is our estimate of that bundle.",flagged:false},
+ {name:"Cripps Barn",country:"uk",city:"Bibury / Cirencester, Gloucestershire",cap:150,baseGuests:150,hireLow:3500,hireHigh:9500,catLow:13500,catHigh:13500,extLow:0,extHigh:0,src:"sourced",claude:8.5,claudeNote:"Best character-to-cost ratio on the UK list — the only caveat is zero capacity buffer at exactly 150 guests.",pros:"Stunning 18th-c stone barn, in-house BBQ/rotisserie feasts, fire pits, late 1am licence, very high reviews.",cons:"150 is the hard ceiling for dining — zero buffer if numbers creep up; popular, books out early.",notes:"Catering (£90pp) confirmed 'from' price; hire estimated from sister venue's seasonal pattern.",flagged:false},
+ {name:"Stone Barn",country:"uk",city:"Burford / Northleach, Gloucestershire/Oxon border",cap:250,baseGuests:150,hireLow:3500,hireHigh:10000,catLow:13500,catHigh:13500,extLow:0,extHigh:0,src:"sourced",claude:8.7,claudeNote:"Same quality as Cripps Barn but with real headroom above 150 guests — probably the strongest UK all-rounder.",pros:"Same Cripps & Co. quality/catering as Cripps Barn but bigger (200 seated), so 150 has headroom.",cons:"Same generic Cripps & Co. barn aesthetic as sister venues.",notes:"Catering shared with Cripps Barn; hire estimated slightly higher given larger capacity.",flagged:false},
+ {name:"Old Gore Barn",country:"uk",city:"Calmsden, Cirencester, Gloucestershire",cap:150,baseGuests:150,hireLow:3500,hireHigh:9000,catLow:13500,catHigh:13500,extLow:0,extHigh:0,src:"estimated",claude:7.8,claudeNote:"Fun and distinctive, but the newest of the three barns with least track record, and no room to grow past 150.",pros:"Distinctive street-food/Asado concept, pizza oven, Funktion-One sound system.",cons:"150 is the absolute max for dining, no headroom.",notes:"No published catering price found — estimated in line with sister venues.",flagged:false},
+ {name:"Clevedon Hall",country:"uk",city:"Clevedon, North Somerset",cap:150,baseGuests:150,hireLow:5000,hireHigh:10000,catLow:17000,catHigh:22000,extLow:0,extHigh:0,src:"estimated",claude:7.0,claudeNote:"Lovely exclusive-use manor, but published packages are costed around 60-80 guests, so 150 pushes past its comfort zone on price.",pros:"Full exclusive-use manor + 25 bedrooms on-site, coastal location, flexible multicultural ceremony spaces.",cons:"150 is the capacity ceiling; headline package based on 60 day guests.",notes:"Hire sourced 'from £5,000'; catering estimated.",flagged:false},
+ {name:"Hampton Manor",country:"uk",city:"Hampton-in-Arden, Solihull",cap:120,baseGuests:150,hireLow:8000,hireHigh:14000,catLow:24000,catHigh:28000,extLow:0,extHigh:0,src:"estimated",claude:7.2,claudeNote:"Exceptional food, but the most expensive per head and tightest on capacity for 150 guests.",pros:"Genuinely exceptional Michelin-starred food; boutique-luxury design.",cons:"Smaller stated capacity (~120) makes 150 a squeeze.",notes:"Entirely estimated — no published per-head wedding pricing.",flagged:false},
+ {name:"Bredenbury Court Barns",country:"uk",city:"Bredenbury, Bromyard, Herefordshire",cap:180,baseGuests:150,hireLow:2950,hireHigh:8950,catLow:8775,catHigh:8775,extLow:0,extHigh:0,src:"sourced",claude:9.0,claudeNote:"Best value in the UK by a wide margin, with genuinely published seasonal pricing — our top UK pick.",pros:"Rare published seasonal price grid; no daytime corkage; on-site accommodation.",cons:"Furthest from London/most UK guests; single in-house caterer.",notes:"Both hire and catering directly sourced — the most reliable UK figures here.",flagged:false},
+ {name:"North Mymms Park",country:"uk",city:"Hatfield, Hertfordshire",cap:400,baseGuests:150,hireLow:11950,hireHigh:26950,catLow:12050,catHigh:14050,extLow:0,extHigh:0,src:"sourced",claude:7.6,claudeNote:"Best for multicultural ceremonies and scale, but dry-hire adds real admin burden and cost variability.",pros:"Very experienced with multicultural/Asian weddings; huge grounds; 30 mins from London.",cons:"Dry-hire only — must separately source caterers, bar and furniture.",notes:"Hire sourced; catering estimated since arranged independently.",flagged:false},
+ {name:"Elmore Court",country:"uk",city:"Elmore, nr. Gloucester",cap:200,baseGuests:150,hireLow:5000,hireHigh:9600,catLow:16600,catHigh:19500,extLow:0,extHigh:0,src:"sourced",claude:8.0,claudeNote:"The most unique atmosphere on the list, but costs stack up once food and drink are added to hire.",pros:"Genuinely unique soundproofed party space (The Gillyflower); sustainability ethos.",cons:"Food & drink priced separately on top of hire.",notes:"Peak hire sourced 'from £6,600'; rest estimated.",flagged:false},
+];
+const SEED_SL = [
+ {name:"Anantara Kalutara Resort",country:"sl",city:"Kalutara",travel:"45–60 min",travelMin:50,baseGuests:100,hireLow:173,hireHigh:240,catLow:863,catHigh:1200,extLow:115,extHigh:160,src:"sourced",claude:8.8,claudeNote:"Cheapest confirmed quote and closest resort to Colombo — hard to beat on logistics and value.",pros:"Confirmed quote; riverside/beachfront setting; well-regarded Anantara service.",cons:"Quoted figure may exclude drinks/extras — confirm exactly what's included.",notes:"Hire/catering/extras split is our estimate of a bundled confirmed quote.",flagged:false},
+ {name:"Anantara Peace Haven Tangalle Resort",country:"sl",city:"Tangalle",travel:"3–3.5 hrs",travelMin:195,baseGuests:100,hireLow:350,hireHigh:500,catLow:1650,catHigh:2400,extLow:200,extHigh:300,src:"estimated",claude:7.5,claudeNote:"Gorgeous, but the transfer time is a genuine guest-experience cost worth weighing.",pros:"Stunning clifftop/beach setting, one of the most photogenic resorts on the south coast.",cons:"Long transfer for UK guests via Colombo.",notes:"Fully estimated from comparable 5-star coastal resorts.",flagged:false},
+ {name:"Weligama Bay Marriott Resort & Spa",country:"sl",city:"Weligama",travel:"2.5–3 hrs",travelMin:165,baseGuests:100,hireLow:400,hireHigh:550,catLow:1850,catHigh:2650,extLow:250,extHigh:300,src:"estimated",claude:7.0,claudeNote:"Reliable, but the least distinctive of the shortlisted resorts given the transfer time.",pros:"Marriott brand consistency; infinity pool over the bay.",cons:"Weligama town itself is a surf/backpacker hub.",notes:"Fully estimated from comparable Marriott-tier coastal resorts.",flagged:false},
+ {name:"Cinnamon Bentota Beach — Signature Selection",country:"sl",city:"Bentota",travel:"1.5–2 hrs",travelMin:100,baseGuests:100,hireLow:300,hireHigh:450,catLow:1500,catHigh:2250,extLow:200,extHigh:300,src:"pending",claude:7.3,claudeNote:"Strong candidate on paper — worth chasing that pending quote before ranking it seriously.",pros:"Cinnamon Hotels very experienced with Sri Lankan/Asian weddings.",cons:"Pricing not yet received — priority follow-up.",notes:"Placeholder estimate until quote arrives.",flagged:false},
+ {name:"Taj Bentota Resort & Spa",country:"sl",city:"Bentota",travel:"1.5–2 hrs",travelMin:100,baseGuests:100,hireLow:450,hireHigh:650,catLow:2050,catHigh:2950,extLow:300,extHigh:400,src:"estimated",claude:8.0,claudeNote:"Excellent multicultural wedding expertise at a reasonable distance — a top Sri Lanka pick.",pros:"Taj's wedding-planning expertise excellent for multicultural ceremonies.",cons:"Premium Taj pricing likely at the higher end of this shortlist.",notes:"Fully estimated from comparable Taj/5-star coastal resorts.",flagged:false},
+ {name:"Jetwing Blue",country:"sl",city:"Negombo",travel:"35–45 min",travelMin:40,baseGuests:100,hireLow:340,hireHigh:340,catLow:1715,catHigh:1715,extLow:230,extHigh:230,src:"sourced",claude:7.4,claudeNote:"Unbeatable logistics for arriving guests, but the least scenic setting of the shortlisted resorts.",pros:"Confirmed costed quote; beachfront near the airport.",cons:"Negombo beach is less scenic than the south coast.",notes:"Total is a confirmed quote; hire/catering split is estimated.",flagged:false},
+ {name:"Avani Kalutara Resort",country:"sl",city:"Kalutara",travel:"45–60 min",travelMin:50,baseGuests:100,hireLow:270,hireHigh:400,catLow:1350,catHigh:1950,extLow:180,extHigh:250,src:"estimated",claude:7.8,claudeNote:"Great value alternative to its Anantara sister property, in the same convenient location.",pros:"More affordable than 5-star siblings while still riverside/beachfront.",cons:"No cost or ranking data gathered yet — needs a direct enquiry.",notes:"Fully estimated from comparable upper-midscale resorts.",flagged:false},
+ {name:"The Lakeside",country:"sl",city:"Colombo",travel:"15–30 min",travelMin:22,baseGuests:100,hireLow:300,hireHigh:420,catLow:1500,catHigh:2100,extLow:200,extHigh:280,src:"estimated",claude:6.5,claudeNote:"Central and affordable, but has the least 'destination wedding' feel of anything on this list.",pros:"Central Colombo, convenient for guests flying in.",cons:"Less 'destination wedding' feel than coastal resorts.",notes:"Fully estimated from comparable Colombo city venues.",flagged:false},
+ {name:"Heritance Ahungalla",country:"sl",city:"Ahungalla",travel:"1.5–2 hrs",travelMin:100,baseGuests:100,hireLow:400,hireHigh:400,catLow:2019,catHigh:2019,extLow:273,extHigh:273,src:"sourced",claude:7.9,claudeNote:"Iconic architecture at a reasonable mid-distance — one of the more distinctive coastal options.",pros:"Confirmed quote; iconic Geoffrey Bawa-designed architecture.",cons:"Older resort — some guests may find it slightly dated.",notes:"Total is a confirmed quote; hire/catering split is estimated.",flagged:false},
+ {name:"Sentido Heritance Negambo",country:"sl",city:"Negombo",travel:"35–45 min",travelMin:40,baseGuests:100,hireLow:430,hireHigh:430,catLow:2150,catHigh:2150,extLow:287,extHigh:287,src:"sourced",claude:7.2,claudeNote:"Convenient and confirmed, but the least scenic of the beach options.",pros:"Confirmed quote; close to airport.",cons:"Least scenic of the shortlisted beach options.",notes:"Total is a confirmed quote; hire/catering split is estimated.",flagged:false},
+ {name:"Galle Face Hotel",country:"sl",city:"Colombo",travel:"15–30 min",travelMin:22,baseGuests:100,hireLow:450,hireHigh:650,catLow:2050,catHigh:3150,extLow:300,extHigh:400,src:"estimated",claude:8.3,claudeNote:"Unmatched heritage prestige and central location — priced accordingly, but a genuine standout.",pros:"Iconic colonial-era heritage hotel on Galle Face Green.",cons:"City hotel, no private beach; Colombo traffic can complicate transfers.",notes:"Fully estimated from comparable heritage 5-star hotels.",flagged:false},
+ {name:"Hilton Colombo",country:"sl",city:"Colombo",travel:"15–30 min",travelMin:22,baseGuests:100,hireLow:255,hireHigh:315,catLow:1275,catHigh:1575,extLow:170,extHigh:210,src:"sourced",claude:7.6,claudeNote:"Dependable and central, but confirm the guest-count basis of the quote before relying on it.",pros:"Confirmed quote; central Colombo, dependable international brand.",cons:"Quote's guest-count basis isn't stated — treat as indicative.",notes:"Total is a confirmed quote; hire/catering split is estimated.",flagged:false},
+ {name:"Shangri-La Colombo",country:"sl",city:"Colombo",travel:"15–30 min",travelMin:22,baseGuests:100,hireLow:500,hireHigh:700,catLow:2400,catHigh:3400,extLow:300,extHigh:400,src:"estimated",claude:8.1,claudeNote:"The showcase 5-star Colombo option, priced at the top of the range for exactly that reason.",pros:"Menu pricing confirmed (LKR 6,000–8,750pp); two ballrooms.",cons:"Likely the priciest Colombo option once venue hire is added.",notes:"Catering price partly sourced; hire/extras estimated.",flagged:false},
+ {name:"Cape Weligama (Relais & Chateaux)",country:"sl",city:"Weligama",travel:"2.5–3 hrs",travelMin:165,baseGuests:100,hireLow:550,hireHigh:850,catLow:2650,catHigh:4150,extLow:300,extHigh:500,src:"estimated",claude:6.0,claudeNote:"Would score very highly on setting alone, but genuinely too small for a 100-guest wedding.",pros:"Extraordinary clifftop setting, one of the most photographed boutique hotels in Sri Lanka.",cons:"Boutique event space realistically suits ~40-60 guests, not 100.",notes:"Fully estimated — no direct quote sought since already flagged too small.",flagged:true,flagReason:"Flagged: venue too small"},
+ {name:"Shangri-La Hambantota",country:"sl",city:"Hambantota",travel:"3.5–4 hrs",travelMin:230,baseGuests:100,hireLow:470,hireHigh:650,catLow:2230,catHigh:3200,extLow:300,extHigh:350,src:"estimated",claude:6.5,claudeNote:"Excellent venue on its own merits, let down entirely by distance from Colombo.",pros:"Sri Lanka's largest resort (58 hectares), huge grounds and capacity.",cons:"Roughly double the drive time of Bentota/Tangalle.",notes:"Fully estimated from comparable Shangri-La coastal resorts.",flagged:true,flagReason:"Flagged: too far"},
+ {name:"The Grand Hotel — Heritage Grand",country:"sl",city:"Nuwara Eliya",travel:"4.5–5 hrs",travelMin:280,baseGuests:100,hireLow:400,hireHigh:600,catLow:1850,catHigh:2900,extLow:250,extHigh:300,src:"estimated",claude:6.0,claudeNote:"Beautiful and different in character, but the travel time is the longest on this entire list.",pros:"Beautiful colonial-era hill-country hotel, Grand Ballroom holds up to 300.",cons:"Mountain roads make this the longest, most tiring transfer of any venue.",notes:"Fully estimated from comparable colonial hill-country hotels.",flagged:true,flagReason:"Flagged: too far"},
+ {name:"Amangalla",country:"sl",city:"Galle",travel:"~2 hrs",travelMin:120,baseGuests:100,hireLow:1200,hireHigh:1800,catLow:4200,catHigh:6300,extLow:600,extHigh:900,src:"estimated",claude:5.5,claudeNote:"Exceptional in every respect except budget — priced completely outside the rest of this shortlist.",pros:"Historic Galle Fort location inside a UNESCO World Heritage site.",cons:"Aman-brand pricing is roughly 2-3x the rest of this shortlist.",notes:"Fully estimated using ultra-luxury boutique benchmarks.",flagged:true,flagReason:"Flagged: too expensive"},
+ {name:"W15 Hanthana Estate",country:"sl",city:"Kandy (Hanthana)",travel:"3–3.5 hrs",travelMin:200,baseGuests:100,hireLow:350,hireHigh:500,catLow:1650,catHigh:2400,extLow:200,extHigh:300,src:"estimated",claude:5.8,claudeNote:"An interesting inland alternative, but undermined by distance and a lack of available data.",pros:"Tea-estate setting in the Hanthana hills near Kandy.",cons:"Long inland drive plus winding hill roads.",notes:"Fully estimated — very little independent pricing information available.",flagged:true,flagReason:"Flagged: too far"},
+ {name:"Heritage Kandalama",country:"sl",city:"Dambulla/Sigiriya",travel:"3.5–4 hrs",travelMin:220,baseGuests:100,hireLow:450,hireHigh:450,catLow:2280,catHigh:2280,extLow:305,extHigh:305,src:"sourced",claude:6.8,claudeNote:"One of Sri Lanka's most architecturally significant hotels, let down purely by distance.",pros:"Confirmed quote; extraordinary Geoffrey Bawa building overlooking Sigiriya.",cons:"Roughly the same distance as the hill country — a very long day.",notes:"Total is a confirmed quote; hire/catering split is estimated.",flagged:true,flagReason:"Flagged: too far"},
+ {name:"Earls Regency",country:"sl",city:"Kandy",travel:"3–3.5 hrs",travelMin:200,baseGuests:100,hireLow:350,hireHigh:450,catLow:1650,catHigh:2250,extLow:200,extHigh:300,src:"estimated",claude:6.0,claudeNote:"Solid but unremarkable next to the coastal shortlist, and one of the furthest venues from Colombo.",pros:"Riverside hotel close to Kandy's cultural sites.",cons:"Over 3 hours from Colombo, hill roads add to journey fatigue.",notes:"Fully estimated from comparable Kandy hotels.",flagged:true,flagReason:"Flagged: too far"},
+];
+
+const DEFAULT_CHECKLIST_TASKS = [
+ ["Set overall budget","12+ months before"],["Decide UK vs Sri Lanka (or both celebrations)","12+ months before"],["Draft the guest list","12+ months before"],
+ ["Research and shortlist venues","12+ months before"],["Book venue(s)","12+ months before"],["Set the date(s)","12+ months before"],
+ ["Book photographer/videographer","9–12 months before"],["Book caterer (if not included in venue)","9–12 months before"],["Choose wedding party","9–12 months before"],
+ ["Order/reserve wedding dress and suits","9–12 months before"],["Book officiant / register the ceremony legally","9–12 months before"],
+ ["Send save-the-dates","6–9 months before"],["Book band/DJ/entertainment","6–9 months before"],["Arrange accommodation blocks for guests","6–9 months before"],
+ ["Book flights (if travelling for the Sri Lanka leg)","6–9 months before"],["Book hair & makeup trial","6–9 months before"],
+ ["Order invitations & stationery","3–6 months before"],["Finalise menu & catering choices","3–6 months before"],["Arrange transport/cars","3–6 months before"],
+ ["Order wedding rings","3–6 months before"],["Plan honeymoon","3–6 months before"],
+ ["Send invitations","1–3 months before"],["Confirm final guest numbers with venues","1–3 months before"],["Final dress/suit fittings","1–3 months before"],
+ ["Arrange seating plan","1–3 months before"],["Confirm suppliers' timings","1–3 months before"],
+ ["Confirm final headcount & dietary requirements","Final month"],["Reconfirm all suppliers","Final month"],["Prepare payments/final balances","Final month"],
+ ["Pack for honeymoon","Final month"],["Rehearse ceremony","Final month"],
+];
+const DEFAULT_BUDGET_LINES = [
+ ["Venue & catering","shared",20000],["Photography & videography","shared",3000],["Attire (dress, suits)","shared",2500],
+ ["Flowers & décor","shared",2000],["Entertainment (band/DJ)","uk",1200],["Stationery","shared",600],["Transport","shared",800],
+ ["Rings","shared",1500],["Hair & makeup","shared",600],["Favours/gifts","shared",500],["Flights (UK guests to Sri Lanka)","sl",0],["Contingency","shared",2000],
+];
+
+/* ================= APP STATE ================= */
+let session=null, weddingId=null, mySlot=null, wedding=null, members=[];
+let venues=[], guests=[], budgetItems=[], checklist=[], compareIds=[];
+let state = {
+  main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true,
+  sort:'cost', view:'list', activeId:null, editingId:null, addMode:'quick',
+  venueSearch:'', venueColFilters:{country:'',location:'',status:'',hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
+  guestSearch:'', guestFilters:{side:'',attend:''},
+  budgetSearch:'', budgetFilters:{country:''},
+  checklistSearch:'', checklistFilters:{group:'',done:''}
+};
+
+function partnerName(slot){ if(!wedding) return slot===1?'Partner 1':'Partner 2'; return slot===1?(wedding.partner1_name||'Partner 1'):(wedding.partner2_name||'Partner 2'); }
+function fmt(n){ return '£' + Math.round(n||0).toLocaleString('en-GB'); }
+
+/* ================= AUTH FLOW ================= */
+let authMode = 'login';
+document.querySelectorAll('[data-authtab]').forEach(t=>t.addEventListener('click', ()=>{
+  document.querySelectorAll('[data-authtab]').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+  authMode = t.dataset.authtab;
+  document.getElementById('displayNameRow').style.display = authMode==='signup' ? 'block' : 'none';
+  document.getElementById('authSubmitBtn').textContent = authMode==='signup' ? 'Sign up' : 'Log in';
+}));
+function showAuthMsg(text, kind){
+  document.getElementById('authMsg').innerHTML = text ? `<div class="auth-msg ${kind}">${text}</div>` : '';
+}
+document.getElementById('authSubmitBtn').addEventListener('click', async ()=>{
+  if(!configured){ showAuthMsg('Supabase isn\u2019t configured yet — add your project URL and anon key in the script config.', 'err'); return; }
+  const email = document.getElementById('auth_email').value.trim();
+  const password = document.getElementById('auth_password').value;
+  if(!email || !password){ showAuthMsg('Please enter both email and password.', 'err'); return; }
+  showAuthMsg('Working on it…', 'info');
+  if(authMode==='signup'){
+    const displayName = document.getElementById('auth_displayname').value.trim() || 'Partner';
+    const { data, error } = await sb.auth.signUp({ email, password });
+    if(error){ showAuthMsg(error.message, 'err'); return; }
+    if(data.session){
+      showAuthMsg('Account created!', 'ok');
+      window._pendingDisplayName = displayName;
+      await onAuthed(data.session);
+    } else {
+      showAuthMsg('Account created — check your email to confirm, then log in. (If your Supabase project has email confirmation switched off, try logging in directly.)', 'info');
+    }
+  } else {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){ showAuthMsg(error.message, 'err'); return; }
+    showAuthMsg('', '');
+    await onAuthed(data.session);
+  }
+});
+document.getElementById('authSignOutBtn').addEventListener('click', doSignOut);
+document.getElementById('signOutBtn').addEventListener('click', doSignOut);
+async function doSignOut(){
+  if(sb) await sb.auth.signOut();
+  session=null; weddingId=null; wedding=null; members=[]; mySlot=null;
+  document.getElementById('appShell').style.display='none';
+  document.getElementById('authShell').style.display='flex';
+  document.getElementById('loginArea').style.display='block';
+  document.getElementById('weddingArea').style.display='none';
+  document.getElementById('authSignOutBtn').style.display='none';
+  document.getElementById('authTitle').textContent='Welcome';
+  document.getElementById('authSub').textContent='Sign in to plan your wedding together, in sync.';
+}
+async function onAuthed(sessionObj){
+  session = sessionObj;
+  document.getElementById('loginArea').style.display='none';
+  document.getElementById('authSignOutBtn').style.display='block';
+  document.getElementById('authTitle').textContent='One more step';
+  document.getElementById('authSub').textContent='Link your account to your shared wedding plan.';
+  const { data: myWeddingId } = await sb.rpc('get_my_wedding');
+  if(myWeddingId){
+    weddingId = myWeddingId;
+    await enterApp();
+  } else {
+    document.getElementById('weddingArea').style.display='block';
+    if(window._pendingDisplayName) document.getElementById('w_name1').value = window._pendingDisplayName;
+  }
+}
+document.querySelectorAll('[data-wchoice]').forEach(b=>b.addEventListener('click', ()=>{
+  document.querySelectorAll('[data-wchoice]').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+  document.getElementById('createWeddingArea').style.display = b.dataset.wchoice==='create' ? 'block':'none';
+  document.getElementById('joinWeddingArea').style.display = b.dataset.wchoice==='join' ? 'block':'none';
+}));
+document.getElementById('createWeddingBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('w_name1').value.trim() || 'Partner 1';
+  const { data, error } = await sb.rpc('create_wedding', { p_display_name: name });
+  if(error){ showAuthMsg(error.message, 'err'); return; }
+  const row = Array.isArray(data) ? data[0] : data;
+  weddingId = row.wedding_id;
+  document.getElementById('weddingArea').querySelectorAll('.wedding-choice, #createWeddingArea, #joinWeddingArea').forEach(el=>el.style.display='none');
+  document.getElementById('inviteDisplay').style.display='block';
+  document.getElementById('inviteCodeShown').textContent = row.invite_code;
+});
+document.getElementById('continueToApp').addEventListener('click', enterApp);
+document.getElementById('joinWeddingBtn').addEventListener('click', async ()=>{
+  const code = document.getElementById('w_code').value.trim();
+  const name = document.getElementById('w_name2').value.trim() || 'Partner 2';
+  if(!code){ showAuthMsg('Please enter the invite code your partner shared.', 'err'); return; }
+  const { data, error } = await sb.rpc('join_wedding', { p_code: code, p_display_name: name });
+  if(error){ showAuthMsg(error.message, 'err'); return; }
+  weddingId = data;
+  await enterApp();
+});
+
+/* ================= ENTER APP / DATA LOADING ================= */
+async function enterApp(){
+  document.getElementById('authShell').style.display='none';
+  document.getElementById('appShell').style.display='flex';
+  await loadWeddingRow();
+  await loadMembers();
+  await loadAll();
+  setupRealtime();
+  document.getElementById('ukGuests').value = wedding.uk_guests; state.ukGuests = wedding.uk_guests; document.getElementById('ukGuestsVal').textContent = wedding.uk_guests;
+  document.getElementById('slGuests').value = wedding.sl_guests; state.slGuests = wedding.sl_guests; document.getElementById('slGuestsVal').textContent = wedding.sl_guests;
+  state.uplift = wedding.uplift; document.getElementById('uplift').value = wedding.uplift; document.getElementById('upliftVal').textContent = '+'+wedding.uplift+'%';
+  state.season = wedding.season || 'peak';
+  document.querySelectorAll('[data-season]').forEach(b=>b.classList.toggle('active', b.dataset.season===state.season));
+  state.showFlagged = wedding.show_flagged !== false; document.getElementById('showFlagged').checked = state.showFlagged;
+  document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`;
+  renderDashboard();
+}
+async function loadWeddingRow(){
+  const { data } = await sb.from('weddings').select('*').eq('id', weddingId).single();
+  wedding = data;
+}
+async function loadMembers(){
+  const { data } = await sb.from('wedding_members').select('*').eq('wedding_id', weddingId);
+  members = data || [];
+  const me = members.find(m=>m.user_id === session.user.id);
+  mySlot = me ? me.slot : null;
+}
+function mapVenueRow(r){
+  return {id:r.id, name:r.name, country:r.country, city:r.city, cap:r.cap, travel:r.travel, travelMin:r.travel_min, baseGuests:r.base_guests,
+    hireLow:+r.hire_low||0, hireHigh:+r.hire_high||0, catLow:+r.cat_low||0, catHigh:+r.cat_high||0, extLow:+r.ext_low||0, extHigh:+r.ext_high||0,
+    src:r.src, claude:r.claude!=null?+r.claude:null, claudeNote:r.claude_note, ratingP1:r.rating_p1!=null?+r.rating_p1:null, ratingP2:r.rating_p2!=null?+r.rating_p2:null,
+    pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, custom:r.custom};
+}
+async function loadVenues(){
+  const { data } = await sb.from('venues').select('*').eq('wedding_id', weddingId).order('created_at');
+  venues = (data||[]).map(mapVenueRow);
+  document.getElementById('loadSeedArea').style.display = venues.length===0 ? 'block' : 'none';
+}
+async function loadGuests(){
+  const { data } = await sb.from('guests').select('*').eq('wedding_id', weddingId).order('created_at');
+  guests = data || [];
+}
+async function loadBudget(){
+  const { data } = await sb.from('budget_items').select('*').eq('wedding_id', weddingId).order('created_at');
+  budgetItems = (data||[]).map(b=>({id:b.id, cat:b.category, country:b.country, planned:+b.planned||0, actual:+b.actual||0}));
+}
+async function loadChecklist(){
+  const { data } = await sb.from('checklist_items').select('*').eq('wedding_id', weddingId).order('created_at');
+  checklist = (data||[]).map(t=>({id:t.id, task:t.task, group:t.group_name, done:t.done}));
+}
+async function loadAll(){
+  await Promise.all([loadVenues(), loadGuests(), loadBudget(), loadChecklist()]);
+}
+
+function setupRealtime(){
+  const flash = ()=>{ const d=document.getElementById('syncDot'); d.style.background='var(--win)'; };
+  sb.channel('wedding-venues-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'venues',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadVenues(); if(state.main==='venues') renderActive(); if(state.main==='dashboard') renderDashboard(); flash(); }).subscribe();
+  sb.channel('wedding-guests-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'guests',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadGuests(); if(state.main==='guests') renderGuests(); if(state.main==='dashboard') renderDashboard(); flash(); }).subscribe();
+  sb.channel('wedding-budget-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'budget_items',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadBudget(); if(state.main==='budget') renderBudget(); if(state.main==='dashboard') renderDashboard(); flash(); }).subscribe();
+  sb.channel('wedding-checklist-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'checklist_items',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadChecklist(); if(state.main==='checklist') renderChecklist(); if(state.main==='dashboard') renderDashboard(); flash(); }).subscribe();
+  sb.channel('wedding-row-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'weddings',filter:`id=eq.${weddingId}`}, async ()=>{ await loadWeddingRow(); document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`; renderActive(); flash(); }).subscribe();
+}
+async function saveWeddingField(patch){
+  wedding = {...wedding, ...patch};
+  await sb.from('weddings').update(patch).eq('id', weddingId);
+}
+
+document.getElementById('loadSeedBtn').addEventListener('click', async ()=>{
+  const rows = [...SEED_UK, ...SEED_SL].map(v=>({
+    wedding_id: weddingId, name:v.name, country:v.country, city:v.city, cap:v.cap||null, travel:v.travel||null, travel_min:v.travelMin||null,
+    base_guests:v.baseGuests, hire_low:v.hireLow, hire_high:v.hireHigh, cat_low:v.catLow, cat_high:v.catHigh, ext_low:v.extLow||0, ext_high:v.extHigh||0,
+    src:v.src, claude:v.claude, claude_note:v.claudeNote, pros:v.pros, cons:v.cons, notes:v.notes, flagged:!!v.flagged, flag_reason:v.flagReason||null, custom:false
+  }));
+  await sb.from('venues').insert(rows);
+  await loadVenues(); renderVenueList();
+});
+
+/* ================= CALC HELPERS ================= */
+function isStub(v){ return (v.hireLow||0)+(v.hireHigh||0)+(v.catLow||0)+(v.catHigh||0)+(v.extLow||0)+(v.extHigh||0) === 0; }
+function statusOf(v){ if(isStub(v)) return 'needsresearch'; if(v.custom) return 'custom'; return v.src; }
+function statusLabel(v){
+  const s = statusOf(v);
+  return {sourced:'Sourced', estimated:'Estimated', pending:'Pending quote', custom:'Your entry', needsresearch:'Needs research'}[s] || 'Estimated';
+}
+function costParts(v, guestCount, season){
+  const scale = guestCount / (v.baseGuests||guestCount);
+  const isPeak = season==='peak';
+  let hire=(isPeak?v.hireHigh:v.hireLow)*scale, cat=(isPeak?v.catHigh:v.catLow)*scale, ext=(isPeak?v.extHigh:v.extLow)*scale;
+  const upliftPct = (v.src==='sourced') ? 0 : state.uplift/100;
+  hire*=(1+upliftPct); cat*=(1+upliftPct); ext*=(1+upliftPct);
+  return {hire,cat,ext,total:hire+cat+ext};
+}
+function guestsFor(v){ return v.country==='uk' ? state.ukGuests : state.slGuests; }
+function exportRowsToExcel(filename, sheetName, aoa){
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
+}
+
+/* ================= MAIN TAB SWITCHING ================= */
+document.querySelectorAll('.mtab').forEach(t=>t.addEventListener('click', ()=>{
+  document.querySelectorAll('.mtab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  state.main = t.dataset.main;
+  ['dashboard','venues','guests','budget','checklist','settings'].forEach(m=>{
+    document.getElementById('tab-'+m).style.display = (m===state.main)?'block':'none';
+  });
+  document.getElementById('venueToolbar').style.display = (state.main==='venues')?'block':'none';
+  renderActive();
+}));
+function goTo(main, opts){
+  opts = opts||{};
+  document.querySelectorAll('.mtab').forEach(x=>x.classList.toggle('active', x.dataset.main===main));
+  state.main = main;
+  ['dashboard','venues','guests','budget','checklist','settings'].forEach(m=>{ document.getElementById('tab-'+m).style.display = (m===main)?'block':'none'; });
+  document.getElementById('venueToolbar').style.display = (main==='venues')?'block':'none';
+  if(opts.guestAttend!==undefined){ state.guestFilters.attend = opts.guestAttend; }
+  if(opts.venueId){ state.view='detail'; state.activeId=opts.venueId; document.getElementById('listView').style.display='none'; document.getElementById('compareView').style.display='none'; document.getElementById('detailView').style.display='block'; }
+  renderActive();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function renderActive(){
+  if(state.main==='dashboard') renderDashboard();
+  else if(state.main==='venues'){ if(state.view==='list') renderVenueList(); else if(state.view==='detail') renderDetail(); else renderCompare(); }
+  else if(state.main==='guests') renderGuests();
+  else if(state.main==='budget') renderBudget();
+  else if(state.main==='checklist') renderChecklist();
+  else if(state.main==='settings') renderSettings();
+}
+
+/* ================= DASHBOARD ================= */
+function renderDashboard(){
+  const ukG = guests.filter(g=>g.attend==='uk'||g.attend==='both').length;
+  const slG = guests.filter(g=>g.attend==='sl'||g.attend==='both').length;
+  const totalG = guests.length;
+  const plannedTotal = budgetItems.reduce((s,b)=>s+(+b.planned||0),0);
+  const actualTotal = budgetItems.reduce((s,b)=>s+(+b.actual||0),0);
+  const doneTasks = checklist.filter(t=>t.done).length;
+  const clPct = checklist.length ? Math.round(doneTasks/checklist.length*100) : 0;
+  const nonFlaggedUk = venues.filter(v=>v.country==='uk');
+  const nonFlaggedSl = venues.filter(v=>v.country==='sl' && !v.flagged);
+  const topUk = [...nonFlaggedUk].sort((a,b)=>(b.claude||0)-(a.claude||0))[0];
+  const topSl = [...nonFlaggedSl].sort((a,b)=>(b.claude||0)-(a.claude||0))[0];
+  const needsResearch = venues.filter(v=>isStub(v)).length;
+  const overallBudget = wedding.overall_budget || 0;
+
+  document.getElementById('tab-dashboard').innerHTML = `
+    <div class="section-head"><h2 style="font-size:22px;">Overview</h2></div>
+    <div class="dcards">
+      <div class="dcard clickable" data-goto="guests"><div class="dlabel">Guest list</div><div class="dval">${totalG}</div><div class="dsub">${ukG} likely UK · ${slG} likely Sri Lanka</div></div>
+      <div class="dcard clickable" data-goto="guests" data-attend="uk"><div class="dlabel">UK capacity check (${wedding.uk_guests})</div><div class="dval" style="color:${ukG>wedding.uk_guests?'var(--flag)':'var(--ink)'}">${ukG}/${wedding.uk_guests}</div>
+        <div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,ukG/wedding.uk_guests*100)}%;background:${ukG>wedding.uk_guests?'var(--flag)':'var(--ink)'}"></div></div></div>
+      <div class="dcard clickable" data-goto="guests" data-attend="sl"><div class="dlabel">Sri Lanka capacity check (${wedding.sl_guests})</div><div class="dval" style="color:${slG>wedding.sl_guests?'var(--flag)':'var(--ink)'}">${slG}/${wedding.sl_guests}</div>
+        <div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,slG/wedding.sl_guests*100)}%;background:${slG>wedding.sl_guests?'var(--flag)':'var(--ink)'}"></div></div></div>
+      <div class="dcard clickable" data-goto="budget"><div class="dlabel">Budget planned vs spent</div><div class="dval">${fmt(actualTotal)}</div><div class="dsub">of ${fmt(plannedTotal)} planned · ${fmt(overallBudget)} overall budget</div>
+        <div class="progress-track"><div class="progress-fill" style="width:${plannedTotal?Math.min(100,actualTotal/plannedTotal*100):0}%"></div></div></div>
+      <div class="dcard clickable" data-goto="checklist"><div class="dlabel">Checklist progress</div><div class="dval">${clPct}%</div><div class="dsub">${doneTasks} of ${checklist.length} tasks done</div>
+        <div class="progress-track"><div class="progress-fill" style="width:${clPct}%"></div></div></div>
+      <div class="dcard clickable" data-goto="venues"><div class="dlabel">Venues needing research</div><div class="dval" style="color:${needsResearch?'var(--info)':'var(--ink)'}">${needsResearch}</div><div class="dsub">Added by name only, awaiting details</div></div>
+      <div class="dcard ${topUk?'clickable':''}" ${topUk?`data-goto="venues" data-venueid="${topUk.id}"`:''}><div class="dlabel">Top UK pick (our score)</div><div class="dval" style="font-size:19px;">${topUk?topUk.name:'–'}</div><div class="dsub">${topUk?topUk.claude.toFixed(1)+'/10 — click to view':''}</div></div>
+      <div class="dcard ${topSl?'clickable':''}" ${topSl?`data-goto="venues" data-venueid="${topSl.id}"`:''}><div class="dlabel">Top Sri Lanka pick (our score)</div><div class="dval" style="font-size:19px;">${topSl?topSl.name:'–'}</div><div class="dsub">${topSl?topSl.claude.toFixed(1)+'/10 — click to view':''}</div></div>
+    </div>
+  `;
+  document.querySelectorAll('.dcard.clickable').forEach(c=>c.addEventListener('click', ()=>{
+    goTo(c.dataset.goto, {guestAttend: c.dataset.attend, venueId: c.dataset.venueid});
+  }));
+}
+
+/* ================= VENUES: KEY / LEGEND ================= */
+function renderKey(){
+  document.getElementById('keybox').innerHTML = `
+    <span style="font-weight:700;font-size:12px;">Key:</span>
+    <span class="kitem"><span class="dot" style="background:var(--uk)"></span>United Kingdom</span>
+    <span class="kitem"><span class="dot" style="background:var(--sl)"></span>Sri Lanka</span>
+    <span class="kitem"><span class="badge sourced" style="margin:0;">Sourced</span>from a real quote/notes</span>
+    <span class="kitem"><span class="badge estimated" style="margin:0;">Estimated</span>modelled from comparable venues</span>
+    <span class="kitem"><span class="badge pending" style="margin:0;">Pending quote</span>you're waiting to hear back</span>
+    <span class="kitem"><span class="badge needsresearch" style="margin:0;">Needs research</span>added by name only</span>
+    <span class="kitem"><span class="swrect" style="background:var(--flag-soft);border:1px solid #E0BCB2;"></span><b style="color:var(--flag)">Red row/card = flagged</b> — noted as too far, too small, or too expensive; hidden by the toggle above</span>
+  `;
+}
+
+/* ================= VENUES: computed rows, search, filters ================= */
+function baseVenueList(){
+  let list = venues.filter(v => state.vtab==='all' ? true : v.country===state.vtab);
+  if(!state.showFlagged) list = list.filter(v=>!v.flagged);
+  return list;
+}
+function computeRow(v){
+  const g = guestsFor(v);
+  const p = costParts(v, g, state.season);
+  return {
+    v, id:v.id, name:v.name, country:v.country, countryLabel:v.country==='uk'?'UK':'Sri Lanka',
+    location:v.city||'', capTravel: v.country==='uk' ? (v.cap||'') : (v.travel||''),
+    hire:p.hire, cat:p.cat, ext:p.ext, total:p.total, perHead:p.total/g,
+    status:statusOf(v), statusLabel:statusLabel(v), claude:v.claude, p1:v.ratingP1, p2:v.ratingP2, flagged:v.flagged
+  };
+}
+function matchesSearch(row, q){
+  if(!q) return true;
+  q = q.toLowerCase();
+  return row.name.toLowerCase().includes(q) || row.location.toLowerCase().includes(q);
+}
+function matchesColFilters(row){
+  const f = state.venueColFilters;
+  if(f.country && row.country!==f.country) return false;
+  if(f.location && !row.location.toLowerCase().includes(f.location.toLowerCase())) return false;
+  if(f.status && row.status!==f.status) return false;
+  if(f.hireMin!=='' && row.hire < +f.hireMin) return false;
+  if(f.catMin!=='' && row.cat < +f.catMin) return false;
+  if(f.extMin!=='' && row.ext < +f.extMin) return false;
+  if(f.totalMin!=='' && row.total < +f.totalMin) return false;
+  if(f.perHeadMin!=='' && row.perHead < +f.perHeadMin) return false;
+  if(f.oursMin!=='' && (row.claude==null || row.claude < +f.oursMin)) return false;
+  if(f.p1Min!=='' && (row.p1==null || row.p1 < +f.p1Min)) return false;
+  if(f.p2Min!=='' && (row.p2==null || row.p2 < +f.p2Min)) return false;
+  return true;
+}
+function visibleRows(){
+  let rows = baseVenueList().map(computeRow);
+  rows = rows.filter(r=>matchesSearch(r, state.venueSearch) && matchesColFilters(r));
+  rows.sort((a,b)=>{
+    if(state.sort==='cost') return a.total-b.total;
+    if(state.sort==='name') return a.name.localeCompare(b.name);
+    if(state.sort==='claude') return (b.claude||0)-(a.claude||0);
+    if(state.sort==='p1') return (b.p1??-1)-(a.p1??-1);
+    if(state.sort==='p2') return (b.p2??-1)-(a.p2??-1);
+    return 0;
+  });
+  return rows;
+}
+function cardHTML(r){
+  const v = r.v;
+  const isCmp = compareIds.includes(v.id);
+  const loc = v.country==='uk' ? r.location : `${r.location} · ${r.capTravel||'—'}`;
+  return `<div class="card ${v.flagged?'flagged':''}" data-id="${v.id}">
+    <div class="card-cmp ${isCmp?'on':''}" data-cmp="${v.id}" title="Add to compare"></div>
+    <div class="card-name">${v.name}</div>
+    <div class="card-loc">${loc}</div>
+    <span class="badge ${r.status}">${r.statusLabel}</span>
+    <div class="card-scores">
+      <span class="score-chip">Ours ${r.claude!=null?r.claude.toFixed(1):'–'}</span>
+      <span class="score-chip">${partnerName(1)} ${r.p1!=null?r.p1:'–'}</span>
+      <span class="score-chip">${partnerName(2)} ${r.p2!=null?r.p2:'–'}</span>
+    </div>
+    <div class="card-cost">${fmt(r.total)}<span class="per">${fmt(r.perHead)}/head · ${guestsFor(v)} guests</span></div>
+  </div>`;
+}
+function statusOptionsHTML(current){
+  const opts = [['','All'],['sourced','Sourced'],['estimated','Estimated'],['pending','Pending quote'],['needsresearch','Needs research'],['custom','Your entry']];
+  return opts.map(([val,label])=>`<option value="${val}" ${current===val?'selected':''}>${label}</option>`).join('');
+}
+function rowHTML(rows){
+  const f = state.venueColFilters;
+  const dataRows = rows.map(r=>`<tr class="datarow ${r.flagged?'rowflagged':''}" data-id="${r.id}">
+      <td class="namecell">${r.name}</td>
+      <td>${r.countryLabel}</td>
+      <td>${r.location}</td>
+      <td class="numcell">${r.capTravel}</td>
+      <td class="numcell">${fmt(r.hire)}</td>
+      <td class="numcell">${fmt(r.cat)}</td>
+      <td class="numcell">${fmt(r.ext)}</td>
+      <td class="numcell"><b>${fmt(r.total)}</b></td>
+      <td class="numcell">${fmt(r.perHead)}</td>
+      <td><span class="badge ${r.status}" style="margin:0;">${r.statusLabel}</span></td>
+      <td class="numcell">${r.claude!=null?r.claude.toFixed(1):'–'}</td>
+      <td class="numcell">${r.p1!=null?r.p1:'–'}</td>
+      <td class="numcell">${r.p2!=null?r.p2:'–'}</td>
+    </tr>`).join('');
+  return `<div class="tablewrap"><table class="vtable">
+    <tr><th>Venue</th><th>Country</th><th>Location</th><th>Cap./Travel</th><th>Hire</th><th>Catering</th><th>Extras</th><th>Total</th><th>Per head</th><th>Status</th><th>Ours</th><th>${partnerName(1)}</th><th>${partnerName(2)}</th></tr>
+    <tr class="filterrow">
+      <th></th>
+      <th><select id="colf_country"><option value="">All</option><option value="uk" ${f.country==='uk'?'selected':''}>UK</option><option value="sl" ${f.country==='sl'?'selected':''}>Sri Lanka</option></select></th>
+      <th><input id="colf_location" placeholder="filter…" value="${f.location}"></th>
+      <th></th>
+      <th><input id="colf_hireMin" type="number" placeholder="min £" value="${f.hireMin}"></th>
+      <th><input id="colf_catMin" type="number" placeholder="min £" value="${f.catMin}"></th>
+      <th><input id="colf_extMin" type="number" placeholder="min £" value="${f.extMin}"></th>
+      <th><input id="colf_totalMin" type="number" placeholder="min £" value="${f.totalMin}"></th>
+      <th><input id="colf_perHeadMin" type="number" placeholder="min £" value="${f.perHeadMin}"></th>
+      <th><select id="colf_status">${statusOptionsHTML(f.status)}</select></th>
+      <th><input id="colf_oursMin" type="number" placeholder="min" value="${f.oursMin}"></th>
+      <th><input id="colf_p1Min" type="number" placeholder="min" value="${f.p1Min}"></th>
+      <th><input id="colf_p2Min" type="number" placeholder="min" value="${f.p2Min}"></th>
+    </tr>
+    ${dataRows || '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--ink-soft);">No venues match these filters.</td></tr>'}
+  </table></div>
+  <button class="clear-filters" id="clearVenueFilters" style="margin-top:8px;">Clear column filters</button>`;
+}
+function renderResearchQueue(){
+  const stubs = venues.filter(v=>isStub(v));
+  const box = document.getElementById('researchQueue');
+  if(!stubs.length){ box.innerHTML=''; return; }
+  box.innerHTML = `<div class="info-banner" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+    <span>⏳ ${stubs.length} venue${stubs.length>1?'s':''} waiting on research: ${stubs.map(s=>s.name).join(', ')}</span>
+    <button class="btn small" id="copyResearchPrompt" style="background:var(--info);border-color:var(--info);width:auto;">Copy research prompt</button>
+  </div>`;
+  document.getElementById('copyResearchPrompt').addEventListener('click', ()=>{
+    const names = stubs.map(s=>s.name).join(', ');
+    const prompt = `Please research these wedding venues and give me a cost breakdown (venue hire, catering, extras — low and peak season), location, capacity/travel time, and pros/cons for each: ${names}`;
+    navigator.clipboard.writeText(prompt).then(()=>alert('Copied! Paste this into your chat with Claude.'));
+  });
+}
+function renderVenueList(){
+  renderKey();
+  renderResearchQueue();
+  const rows = visibleRows();
+  document.getElementById('venueResultCount').textContent = `Showing ${rows.length} of ${baseVenueList().length} venues`;
+  if(state.viewmode==='tiles'){
+    document.getElementById('grid').style.display='grid';
+    document.getElementById('tableViewWrap').style.display='none';
+    document.getElementById('grid').innerHTML = rows.map(cardHTML).join('') || '<div class="empty">No venues match these filters.</div>';
+    document.querySelectorAll('.card').forEach(c=>c.addEventListener('click', e=>{ if(e.target.closest('.card-cmp')) return; openDetail(c.dataset.id); }));
+    document.querySelectorAll('.card-cmp').forEach(c=>c.addEventListener('click', e=>{ e.stopPropagation(); toggleCompare(c.dataset.cmp); }));
+  } else {
+    document.getElementById('grid').style.display='none';
+    document.getElementById('tableViewWrap').style.display='block';
+    document.getElementById('tableViewWrap').innerHTML = rowHTML(rows);
+    document.querySelectorAll('.datarow').forEach(tr=>tr.addEventListener('click', ()=>openDetail(tr.dataset.id)));
+    bindColFilterInputs();
+  }
+  renderTray();
+}
+function bindColFilterInputs(){
+  const map = {colf_country:'country',colf_location:'location',colf_status:'status',colf_hireMin:'hireMin',colf_catMin:'catMin',colf_extMin:'extMin',colf_totalMin:'totalMin',colf_perHeadMin:'perHeadMin',colf_oursMin:'oursMin',colf_p1Min:'p1Min',colf_p2Min:'p2Min'};
+  Object.entries(map).forEach(([elId,key])=>{
+    const el = document.getElementById(elId);
+    if(!el) return;
+    el.addEventListener('input', ()=>{ state.venueColFilters[key] = el.value; renderVenueList(); });
+  });
+  const clearBtn = document.getElementById('clearVenueFilters');
+  if(clearBtn) clearBtn.addEventListener('click', ()=>{
+    Object.keys(state.venueColFilters).forEach(k=>state.venueColFilters[k]='');
+    renderVenueList();
+  });
+}
+document.getElementById('venueSearch').addEventListener('input', e=>{ state.venueSearch=e.target.value; renderVenueList(); });
+document.getElementById('exportVenuesBtn').addEventListener('click', ()=>{
+  const rows = visibleRows();
+  const header = ['Venue','Country','Location','Capacity/Travel','Venue hire (£)','Catering (£)','Extras (£)','Total (£)','Cost/head (£)','Status','Our score',partnerName(1),partnerName(2),'Pros','Cons'];
+  const aoa = [header, ...rows.map(r=>[r.name,r.countryLabel,r.location,r.capTravel,Math.round(r.hire),Math.round(r.cat),Math.round(r.ext),Math.round(r.total),Math.round(r.perHead),r.statusLabel,r.claude??'',r.p1??'',r.p2??'',r.v.pros||'',r.v.cons||''])];
+  exportRowsToExcel('wedding-venues.xlsx','Venues',aoa);
+});
+document.querySelectorAll('.vtab').forEach(t=>t.addEventListener('click', ()=>{
+  document.querySelectorAll('.vtab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+  state.vtab = t.dataset.vtab; renderVenueList();
+}));
+document.querySelectorAll('.viewmode').forEach(t=>t.addEventListener('click', ()=>{
+  document.querySelectorAll('.viewmode').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+  state.viewmode = t.dataset.viewmode; renderVenueList();
+}));
+document.getElementById('sortSelect').addEventListener('change', e=>{ state.sort=e.target.value; renderVenueList(); });
+document.getElementById('showFlagged').addEventListener('change', e=>{ state.showFlagged=e.target.checked; saveWeddingField({show_flagged:state.showFlagged}); renderVenueList(); });
+document.getElementById('ukGuests').addEventListener('input', e=>{ state.ukGuests=+e.target.value; document.getElementById('ukGuestsVal').textContent=state.ukGuests; saveWeddingField({uk_guests:state.ukGuests}); renderActive(); });
+document.getElementById('slGuests').addEventListener('input', e=>{ state.slGuests=+e.target.value; document.getElementById('slGuestsVal').textContent=state.slGuests; saveWeddingField({sl_guests:state.slGuests}); renderActive(); });
+document.getElementById('uplift').addEventListener('input', e=>{ state.uplift=+e.target.value; document.getElementById('upliftVal').textContent='+'+state.uplift+'%'; saveWeddingField({uplift:state.uplift}); renderActive(); });
+document.querySelectorAll('[data-season]').forEach(btn=>btn.addEventListener('click', ()=>{
+  document.querySelectorAll('[data-season]').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+  state.season = btn.dataset.season; saveWeddingField({season:state.season}); renderActive();
+}));
+
+/* ================= COMPARE TRAY ================= */
+function toggleCompare(id){
+  const i = compareIds.indexOf(id);
+  if(i>-1) compareIds.splice(i,1); else { if(compareIds.length>=4) compareIds.shift(); compareIds.push(id); }
+  if(state.view==='list') renderVenueList();
+  renderTray();
+  if(state.view==='detail') renderDetail();
+}
+function renderTray(){
+  const tray = document.getElementById('tray');
+  if(state.main!=='venues' || compareIds.length===0){ tray.classList.remove('show'); return; }
+  tray.classList.add('show');
+  const chips = compareIds.map(id=>{ const v=venues.find(x=>x.id===id); return `<div class="tray-chip">${v?v.name:id}<button data-rm="${id}">×</button></div>`; }).join('');
+  document.getElementById('trayInner').innerHTML = `
+    <span style="font-size:12.5px;font-weight:600;">Comparing ${compareIds.length}:</span>${chips}
+    <div class="tray-spacer"></div>
+    <button class="btn ghost small" id="clearCmp" style="border-color:rgba(255,255,255,.3);color:#fff;">Clear</button>
+    <button class="btn small" id="openCmp" style="background:#fff;color:var(--ink);border-color:#fff;" ${compareIds.length<2?'disabled':''}>Compare (${compareIds.length})</button>`;
+  document.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click', ()=>toggleCompare(b.dataset.rm)));
+  document.getElementById('clearCmp').addEventListener('click', ()=>{compareIds=[]; renderTray(); renderActive();});
+  document.getElementById('openCmp').addEventListener('click', openCompare);
+}
+
+/* ================= DETAIL VIEW ================= */
+function openDetail(id){
+  state.activeId=id; state.view='detail';
+  document.getElementById('listView').style.display='none';
+  document.getElementById('compareView').style.display='none';
+  document.getElementById('detailView').style.display='block';
+  renderDetail(); window.scrollTo({top:0,behavior:'smooth'});
+}
+function closeDetail(){ state.view='list'; document.getElementById('detailView').style.display='none'; document.getElementById('listView').style.display='block'; renderVenueList(); }
+
+function renderDetail(){
+  const v = venues.find(x=>x.id===state.activeId);
+  if(!v){ closeDetail(); return; }
+  const guests_ = guestsFor(v);
+  const parts = costParts(v, guests_, state.season);
+  const pctHire = parts.total?(parts.hire/parts.total*100):0, pctCat = parts.total?(parts.cat/parts.total*100):0, pctExt = parts.total?(parts.ext/parts.total*100):0;
+  const isCmp = compareIds.includes(v.id);
+  const loc = v.country==='uk' ? `${v.city} · Max capacity ${v.cap||'—'}` : `${v.city} · ${v.travel||'—'} from Colombo`;
+  const status = statusOf(v);
+  const stub = isStub(v);
+  const myVal = mySlot===1 ? v.ratingP1 : v.ratingP2;
+  const theirVal = mySlot===1 ? v.ratingP2 : v.ratingP1;
+  const myLabel = mySlot===1 ? partnerName(1) : partnerName(2);
+  const theirLabel = mySlot===1 ? partnerName(2) : partnerName(1);
+
+  document.getElementById('detailView').innerHTML = `
+    <button class="back-link" id="backBtn">← Back to all venues</button>
+    <div class="detail ${v.country}">
+      <div class="detail-head">
+        <div><h2 class="detail-title">${v.name}</h2><div class="detail-loc">${loc}</div><span class="badge ${status}">${statusLabel(v)}</span></div>
+        <div class="detail-actions">
+          <button class="btn ${isCmp?'':'ghost'} small" id="cmpBtn">${isCmp?'✓ In compare':'+ Add to compare'}</button>
+          <button class="btn ghost small" id="editBtn">Edit / add quote</button>
+          ${v.custom ? '<button class="btn danger small" id="delBtn">Delete</button>' : ''}
+        </div>
+      </div>
+      ${v.flagged ? `<div class="flag-banner">⚑ ${v.flagReason||'Flagged'}</div>` : ''}
+      ${stub ? `<div class="info-banner">⏳ This venue needs research — no cost data yet. Click "Edit / add quote" once you have details, or ask Claude in chat.</div>` : ''}
+
+      <div class="detail-grid">
+        <div>
+          <div class="breakdown-title">Cost breakdown · ${guests_} guests · ${state.season==='peak'?'peak':'low'} season · click a segment to highlight</div>
+          <div class="stack ${v.country}">
+            <div class="seg-hire" data-seg="row-hire" style="width:${pctHire}%">${pctHire>10?fmt(parts.hire):''}</div>
+            <div class="seg-catering" data-seg="row-cat" style="width:${pctCat}%">${pctCat>10?fmt(parts.cat):''}</div>
+            <div class="seg-extras" data-seg="row-ext" style="width:${pctExt}%">${pctExt>10?fmt(parts.ext):''}</div>
+          </div>
+          <div class="legend">
+            <span><i style="background:${v.country==='uk'?'#3B4A38':'#7A5510'}"></i>Venue hire</span>
+            <span><i style="background:${v.country==='uk'?'#6E8367':'#B5811E'}"></i>Catering</span>
+            <span><i style="background:${v.country==='uk'?'#B7C4AE':'#E4C784'}"></i>Extras</span>
+          </div>
+          <table class="cost-table">
+            <tr id="row-hire"><td>Venue hire</td><td>${fmt(parts.hire)}</td></tr>
+            <tr id="row-cat"><td>Catering</td><td>${fmt(parts.cat)}</td></tr>
+            <tr id="row-ext"><td>Extras</td><td>${fmt(parts.ext)}</td></tr>
+            <tr class="total"><td>Total</td><td>${fmt(parts.total)}</td></tr>
+            <tr><td>Cost per head</td><td>${fmt(parts.total/guests_)}</td></tr>
+          </table>
+          <div class="basis-note">${v.notes||''}</div>
+          <div class="pc-block">
+            <h3 style="font-size:16px;">Pros &amp; cons</h3>
+            <ul class="pc-list pro"><li>${v.pros||'—'}</li></ul>
+            <ul class="pc-list con"><li>${v.cons||'—'}</li></ul>
+          </div>
+        </div>
+        <div>
+          <div class="rank-block">
+            <div class="breakdown-title" style="margin-bottom:14px;">Our suggested score</div>
+            <div class="rank-row"><span class="rank-name">Claude's assessment</span><span class="rank-score">${v.claude!=null?v.claude.toFixed(1):'–'}/10</span></div>
+            <div class="claude-note">${v.claudeNote||'Not yet assessed.'}</div>
+          </div>
+          <div class="rank-block">
+            <div class="breakdown-title" style="margin-bottom:14px;">Rankings</div>
+            <div class="rank-row"><span class="rank-name">${myLabel} (you)</span><span class="rank-score" id="mySliderVal">${myVal!=null?myVal:'–'}</span></div>
+            <input type="range" class="rank-slider" id="mySlider" min="0" max="10" step="0.5" value="${myVal!=null?myVal:5}">
+            <div class="rank-row" style="margin-top:16px;"><span class="rank-name">${theirLabel}</span><span class="rank-score">${theirVal!=null?theirVal:'–'}</span></div>
+            <div class="readonly-note">Only ${theirLabel} can change their own ranking — this updates live as soon as they do.</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('backBtn').addEventListener('click', closeDetail);
+  document.getElementById('cmpBtn').addEventListener('click', ()=>{toggleCompare(v.id); renderDetail();});
+  document.getElementById('editBtn').addEventListener('click', ()=>openEditModal(v));
+  if(v.custom) document.getElementById('delBtn').addEventListener('click', async ()=>{
+    if(confirm('Delete this venue?')){ await sb.from('venues').delete().eq('id', v.id); await loadVenues(); closeDetail(); }
+  });
+  document.querySelectorAll('[data-seg]').forEach(seg=>seg.addEventListener('click', ()=>{
+    const row = document.getElementById(seg.dataset.seg);
+    if(row){ row.classList.add('pulse'); setTimeout(()=>row.classList.remove('pulse'), 900); row.scrollIntoView({behavior:'smooth',block:'center'}); }
+  }));
+  const mySliderEl = document.getElementById('mySlider');
+  mySliderEl.addEventListener('input', async ()=>{
+    document.getElementById('mySliderVal').textContent = mySliderEl.value;
+    const patch = mySlot===1 ? {rating_p1: parseFloat(mySliderEl.value)} : {rating_p2: parseFloat(mySliderEl.value)};
+    await sb.from('venues').update(patch).eq('id', v.id);
+  });
+}
+
+/* ================= COMPARE VIEW ================= */
+function openCompare(){
+  state.view='compare';
+  document.getElementById('listView').style.display='none'; document.getElementById('detailView').style.display='none'; document.getElementById('compareView').style.display='block';
+  renderCompare(); window.scrollTo({top:0,behavior:'smooth'});
+}
+function closeCompare(){ state.view='list'; document.getElementById('compareView').style.display='none'; document.getElementById('listView').style.display='block'; renderVenueList(); }
+function winnerIndex(values, lowerIsBetter){
+  let idxs = values.map((v,i)=>[v,i]).filter(([v])=>v!==null && v!==undefined);
+  if(!idxs.length) return -1;
+  idxs.sort((a,b)=> lowerIsBetter ? a[0]-b[0] : b[0]-a[0]);
+  return idxs[0][1];
+}
+function renderCompare(){
+  const list = compareIds.map(id=>venues.find(v=>v.id===id)).filter(Boolean);
+  if(list.length<2){ closeCompare(); return; }
+  const totals = list.map(v=>costParts(v,guestsFor(v),state.season).total);
+  const hires = list.map(v=>costParts(v,guestsFor(v),state.season).hire);
+  const caterings = list.map(v=>costParts(v,guestsFor(v),state.season).cat);
+  const extras = list.map(v=>costParts(v,guestsFor(v),state.season).ext);
+  const perHeads = list.map((v,i)=>totals[i]/guestsFor(v));
+  const claudes = list.map(v=>v.claude), p1s=list.map(v=>v.ratingP1), p2s=list.map(v=>v.ratingP2);
+  const sameCountry = list.every(v=>v.country===list[0].country);
+  const caps = sameCountry && list[0].country==='uk' ? list.map(v=>v.cap) : null;
+  const travels = sameCountry && list[0].country==='sl' ? list.map(v=>v.travelMin) : null;
+  const wTotal=winnerIndex(totals,true), wHire=winnerIndex(hires,true), wCat=winnerIndex(caterings,true), wExt=winnerIndex(extras,true), wPer=winnerIndex(perHeads,true);
+  const wClaude=winnerIndex(claudes,false), wP1=winnerIndex(p1s,false), wP2=winnerIndex(p2s,false);
+  const wCap=caps?winnerIndex(caps,false):-1, wTravel=travels?winnerIndex(travels,true):-1;
+  function row(label,values,winIdx,formatter){
+    return `<tr><td class="metric-label">${label}</td>${values.map((val,i)=>{
+      const d = val===null||val===undefined?'–':formatter(val);
+      return `<td class="val ${i===winIdx?'win':''}">${d}</td>`;
+    }).join('')}</tr>`;
+  }
+  document.getElementById('compareView').innerHTML = `
+    <button class="back-link" id="cmpBack">← Back to all venues</button>
+    <h2 style="margin-bottom:6px;">Comparing ${list.length} venues</h2>
+    <p style="color:var(--ink-soft);font-size:13.5px;margin-top:0;">Highlighted cells show the better option in that row. Click a venue's name to open its full profile.</p>
+    <div class="cmp-table-wrap"><table class="cmp-table">
+      <tr><th>Metric</th>${list.map(v=>`<th class="venue-col"><b data-open="${v.id}">${v.name}</b><br><button class="remove-col" data-rm="${v.id}">remove</button></th>`).join('')}</tr>
+      ${row('Total cost',totals,wTotal,fmt)}
+      ${row('Venue hire',hires,wHire,fmt)}
+      ${row('Catering',caterings,wCat,fmt)}
+      ${row('Extras',extras,wExt,fmt)}
+      ${row('Cost / head',perHeads,wPer,fmt)}
+      ${caps?row('Max capacity',caps,wCap,x=>x):''}
+      ${travels?row('Travel from Colombo (min)',travels,wTravel,x=>x+' min'):''}
+      ${row('Our suggested score',claudes,wClaude,x=>x.toFixed(1))}
+      ${row(partnerName(1)+"'s rank",p1s,wP1,x=>x)}
+      ${row(partnerName(2)+"'s rank",p2s,wP2,x=>x)}
+    </table></div>`;
+  document.getElementById('cmpBack').addEventListener('click', closeCompare);
+  document.querySelectorAll('.remove-col').forEach(b=>b.addEventListener('click', ()=>{toggleCompare(b.dataset.rm); renderCompare();}));
+  document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click', ()=>openDetail(b.dataset.open)));
+}
+
+/* ================= ADD / EDIT VENUE MODAL ================= */
+const overlay = document.getElementById('modalOverlay');
+document.getElementById('addBtn').addEventListener('click', ()=>{ state.editingId=null; resetVenueForm(); setAddMode('quick'); document.getElementById('modalTitle').textContent='Add a venue'; document.getElementById('modalSub').textContent="Choose how much detail you have right now."; document.getElementById('addModeRow').style.display='flex'; overlay.classList.add('show'); });
+document.getElementById('cancelAdd').addEventListener('click', ()=>overlay.classList.remove('show'));
+document.querySelectorAll('.addmode-btn').forEach(b=>b.addEventListener('click', ()=>setAddMode(b.dataset.mode)));
+function setAddMode(mode){
+  state.addMode = mode;
+  document.querySelectorAll('.addmode-btn').forEach(b=>b.classList.toggle('active', b.dataset.mode===mode));
+  document.getElementById('fullFields').style.display = mode==='full' ? 'block' : 'none';
+}
+document.getElementById('f_country').addEventListener('change', e=>{ document.getElementById('f_capLabel').textContent = e.target.value==='uk'?'Max capacity':'Max capacity (optional)'; });
+function resetVenueForm(){
+  ['f_name','f_city','f_cap','f_travel','f_baseGuests','f_hireLow','f_hireHigh','f_catLow','f_catHigh','f_extLow','f_extHigh','f_pros','f_cons','f_notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f_country').value='uk';
+}
+function openEditModal(v){
+  state.editingId = v.id;
+  document.getElementById('modalTitle').textContent = 'Edit venue';
+  document.getElementById('modalSub').textContent = 'Update with real quote details as you receive them.';
+  document.getElementById('addModeRow').style.display='none';
+  document.getElementById('fullFields').style.display='block';
+  document.getElementById('f_name').value=v.name; document.getElementById('f_country').value=v.country; document.getElementById('f_city').value=v.city||'';
+  document.getElementById('f_cap').value=v.cap||''; document.getElementById('f_travel').value=v.travel||''; document.getElementById('f_baseGuests').value=v.baseGuests||'';
+  document.getElementById('f_hireLow').value=v.hireLow||0; document.getElementById('f_hireHigh').value=v.hireHigh||0;
+  document.getElementById('f_catLow').value=v.catLow||0; document.getElementById('f_catHigh').value=v.catHigh||0;
+  document.getElementById('f_extLow').value=v.extLow||0; document.getElementById('f_extHigh').value=v.extHigh||0;
+  document.getElementById('f_pros').value=v.pros||''; document.getElementById('f_cons').value=v.cons||''; document.getElementById('f_notes').value=v.notes||'';
+  overlay.classList.add('show');
+}
+document.getElementById('saveAdd').addEventListener('click', async ()=>{
+  const name = document.getElementById('f_name').value.trim();
+  if(!name){ alert('Please enter a venue name.'); return; }
+  const country = document.getElementById('f_country').value;
+  const quickMode = (!state.editingId) && state.addMode==='quick';
+  const patch = {
+    name, country,
+    city: document.getElementById('f_city').value.trim() || '—',
+    cap: parseFloat(document.getElementById('f_cap').value)||(country==='uk'?150:100),
+    travel: document.getElementById('f_travel').value.trim() || '—',
+    travel_min: 999,
+    base_guests: parseFloat(document.getElementById('f_baseGuests').value) || (country==='uk'?150:100),
+    hire_low: quickMode?0:(parseFloat(document.getElementById('f_hireLow').value)||0),
+    hire_high: quickMode?0:(parseFloat(document.getElementById('f_hireHigh').value)||0),
+    cat_low: quickMode?0:(parseFloat(document.getElementById('f_catLow').value)||0),
+    cat_high: quickMode?0:(parseFloat(document.getElementById('f_catHigh').value)||0),
+    ext_low: quickMode?0:(parseFloat(document.getElementById('f_extLow').value)||0),
+    ext_high: quickMode?0:(parseFloat(document.getElementById('f_extHigh').value)||0),
+    pros: document.getElementById('f_pros').value.trim() || (quickMode?'To be researched.':'—'),
+    cons: document.getElementById('f_cons').value.trim() || (quickMode?'To be researched.':'—'),
+    notes: document.getElementById('f_notes').value.trim() || '',
+    src: 'estimated'
+  };
+  if(state.editingId){
+    await sb.from('venues').update(patch).eq('id', state.editingId);
+  } else {
+    await sb.from('venues').insert({...patch, wedding_id: weddingId, custom:true, claude:null, claude_note:"Added directly — not yet assessed.", flagged:false});
+  }
+  overlay.classList.remove('show');
+  await loadVenues();
+  if(state.view==='detail') renderDetail(); else renderVenueList();
+});
+
+/* ================= GUESTS TAB ================= */
+function sideOptionsHTML(current){
+  return `<option value="partner1" ${current==='partner1'?'selected':''}>${partnerName(1)}'s</option>
+    <option value="partner2" ${current==='partner2'?'selected':''}>${partnerName(2)}'s</option>
+    <option value="both" ${current==='both'?'selected':''}>Both / mutual</option>`;
+}
+function visibleGuests(){
+  return guests.filter(g=>{
+    if(state.guestSearch){ const q=state.guestSearch.toLowerCase(); if(!g.name.toLowerCase().includes(q) && !(g.contact||'').toLowerCase().includes(q)) return false; }
+    if(state.guestFilters.side && g.side!==state.guestFilters.side) return false;
+    if(state.guestFilters.attend && g.attend!==state.guestFilters.attend) return false;
+    return true;
+  });
+}
+function renderGuests(){
+  const ukCount = guests.filter(g=>g.attend==='uk'||g.attend==='both').length;
+  const slCount = guests.filter(g=>g.attend==='sl'||g.attend==='both').length;
+  const p1Count = guests.filter(g=>g.side==='partner1').length, p2Count = guests.filter(g=>g.side==='partner2').length, bCount = guests.filter(g=>g.side==='both').length;
+  const shown = visibleGuests();
+  const rows = shown.map(g=>`<tr>
+      <td>${g.name}</td>
+      <td><span class="tag ${g.side==='partner1'?'p1':(g.side==='partner2'?'p2':'both')}">${g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s")}</span></td>
+      <td>${g.contact||'—'}</td>
+      <td>${({both:'Both weddings',uk:'UK only',sl:'Sri Lanka only',unsure:'Not sure yet'})[g.attend]}</td>
+      <td><button class="rmbtn" data-rmguest="${g.id}">Remove</button></td>
+    </tr>`).join('');
+  document.getElementById('tab-guests').innerHTML = `
+    <div class="section-head">
+      <h2 style="font-size:22px;">Guest list</h2>
+      <div class="searchbox"><input id="guestSearch" placeholder="Search name or contact…" value="${state.guestSearch}"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" id="addGuestBtn" style="width:auto;">+ Add guest</button>
+        <button class="btn export" id="exportGuestsBtn" style="width:auto;">⬇ Excel</button>
+      </div>
+    </div>
+    <div class="dcards">
+      <div class="dcard"><div class="dlabel">Total guests</div><div class="dval">${guests.length}</div></div>
+      <div class="dcard"><div class="dlabel">${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${p1Count} / ${p2Count} / ${bCount}</div></div>
+      <div class="dcard"><div class="dlabel">Likely UK attendance</div><div class="dval" style="color:${ukCount>wedding.uk_guests?'var(--flag)':'var(--ink)'}">${ukCount}/${wedding.uk_guests}</div></div>
+      <div class="dcard"><div class="dlabel">Likely Sri Lanka attendance</div><div class="dval" style="color:${slCount>wedding.sl_guests?'var(--flag)':'var(--ink)'}">${slCount}/${wedding.sl_guests}</div></div>
+    </div>
+    <p class="result-count">Showing ${shown.length} of ${guests.length} guests</p>
+    <table class="plain-table">
+      <tr><th>Name</th><th>Whose guest</th><th>Contact</th><th>Likely to attend</th><th></th></tr>
+      <tr class="filterrow2">
+        <td></td>
+        <td><select id="gf_side"><option value="">All</option>${sideOptionsHTML(state.guestFilters.side)}</select></td>
+        <td></td>
+        <td><select id="gf_attend"><option value="">All</option><option value="uk" ${state.guestFilters.attend==='uk'?'selected':''}>UK only</option><option value="sl" ${state.guestFilters.attend==='sl'?'selected':''}>Sri Lanka only</option><option value="both" ${state.guestFilters.attend==='both'?'selected':''}>Both</option><option value="unsure" ${state.guestFilters.attend==='unsure'?'selected':''}>Not sure</option></select></td>
+        <td></td>
+      </tr>
+      ${rows || '<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
+    </table>`;
+  document.getElementById('addGuestBtn').addEventListener('click', ()=>{ document.getElementById('g_side').innerHTML = sideOptionsHTML('partner1'); guestOverlay.classList.add('show'); });
+  document.getElementById('exportGuestsBtn').addEventListener('click', ()=>{
+    const header=['Name','Whose guest','Contact','Likely to attend'];
+    const aoa=[header, ...shown.map(g=>[g.name, g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.contact||'', ({both:'Both weddings',uk:'UK only',sl:'Sri Lanka only',unsure:'Not sure yet'})[g.attend]])];
+    exportRowsToExcel('guest-list.xlsx','Guests',aoa);
+  });
+  document.getElementById('guestSearch').addEventListener('input', e=>{ state.guestSearch=e.target.value; renderGuests(); });
+  document.getElementById('gf_side').addEventListener('change', e=>{ state.guestFilters.side=e.target.value; renderGuests(); });
+  document.getElementById('gf_attend').addEventListener('change', e=>{ state.guestFilters.attend=e.target.value; renderGuests(); });
+  document.querySelectorAll('[data-rmguest]').forEach(b=>b.addEventListener('click', async ()=>{
+    await sb.from('guests').delete().eq('id', b.dataset.rmguest); await loadGuests(); renderGuests();
+  }));
+}
+const guestOverlay = document.getElementById('guestOverlay');
+document.getElementById('cancelGuest').addEventListener('click', ()=>guestOverlay.classList.remove('show'));
+document.getElementById('saveGuest').addEventListener('click', async ()=>{
+  const name = document.getElementById('g_name').value.trim();
+  if(!name){ alert('Please enter a name.'); return; }
+  await sb.from('guests').insert({wedding_id:weddingId, name, side:document.getElementById('g_side').value, attend:document.getElementById('g_attend').value, contact:document.getElementById('g_contact').value.trim()});
+  ['g_name','g_contact'].forEach(id=>document.getElementById(id).value='');
+  guestOverlay.classList.remove('show');
+  await loadGuests(); renderGuests();
+});
+
+/* ================= BUDGET TAB ================= */
+function visibleBudget(){
+  return budgetItems.filter(b=>{
+    if(state.budgetSearch && !b.cat.toLowerCase().includes(state.budgetSearch.toLowerCase())) return false;
+    if(state.budgetFilters.country && b.country!==state.budgetFilters.country) return false;
+    return true;
+  });
+}
+function renderBudget(){
+  const plannedTotal = budgetItems.reduce((s,b)=>s+(+b.planned||0),0);
+  const actualTotal = budgetItems.reduce((s,b)=>s+(+b.actual||0),0);
+  const overallBudget = wedding.overall_budget || 0;
+  const shown = visibleBudget();
+  const rows = shown.map(b=>`<tr>
+      <td>${b.cat}</td>
+      <td><span class="tag ${b.country==='uk'?'p1':(b.country==='sl'?'p2':'both')}">${({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country]}</span></td>
+      <td class="numcell" style="font-family:'IBM Plex Mono',monospace;">${fmt(b.planned)}</td>
+      <td><input type="number" data-actual="${b.id}" value="${b.actual}" style="max-width:110px;"></td>
+      <td class="numcell" style="font-family:'IBM Plex Mono',monospace;color:${b.actual>b.planned?'var(--flag)':'var(--win)'}">${fmt(b.planned-b.actual)}</td>
+      <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
+    </tr>`).join('');
+  document.getElementById('tab-budget').innerHTML = `
+    <div class="section-head">
+      <h2 style="font-size:22px;">Budget tracker</h2>
+      <div class="searchbox"><input id="budgetSearch" placeholder="Search category…" value="${state.budgetSearch}"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" id="addBudgetBtn" style="width:auto;">+ Add line</button>
+        <button class="btn export" id="exportBudgetBtn" style="width:auto;">⬇ Excel</button>
+      </div>
+    </div>
+    <div class="dcards">
+      <div class="dcard">
+        <div class="dlabel">Overall wedding budget</div>
+        <input type="number" id="overallBudgetInput" value="${overallBudget}" style="font-family:'Fraunces',serif;font-size:22px;border:none;background:none;padding:0;width:100%;color:var(--ink);">
+        <div class="dsub">Editable — shared, updates live for both of you</div>
+      </div>
+      <div class="dcard"><div class="dlabel">Total planned</div><div class="dval">${fmt(plannedTotal)}</div><div class="dsub" style="color:${plannedTotal>overallBudget?'var(--flag)':'var(--ink-soft)'}">${plannedTotal>overallBudget?'Over overall budget by '+fmt(plannedTotal-overallBudget):fmt(overallBudget-plannedTotal)+' headroom left'}</div></div>
+      <div class="dcard"><div class="dlabel">Total spent so far</div><div class="dval">${fmt(actualTotal)}</div>
+        <div class="progress-track"><div class="progress-fill" style="width:${overallBudget?Math.min(100,actualTotal/overallBudget*100):0}%;background:${actualTotal>overallBudget?'var(--flag)':'var(--ink)'}"></div></div></div>
+      <div class="dcard"><div class="dlabel">Remaining vs plan</div><div class="dval" style="color:${plannedTotal-actualTotal<0?'var(--flag)':'var(--ink)'}">${fmt(plannedTotal-actualTotal)}</div></div>
+    </div>
+    <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines</p>
+    <table class="plain-table">
+      <tr><th>Category</th><th>Wedding</th><th>Planned</th><th>Actual spent</th><th>Remaining</th><th></th></tr>
+      <tr class="filterrow2">
+        <td></td>
+        <td><select id="bf_country"><option value="">All</option><option value="uk" ${state.budgetFilters.country==='uk'?'selected':''}>UK</option><option value="sl" ${state.budgetFilters.country==='sl'?'selected':''}>Sri Lanka</option><option value="shared" ${state.budgetFilters.country==='shared'?'selected':''}>Shared</option></select></td>
+        <td></td><td></td><td></td><td></td>
+      </tr>
+      ${rows || '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
+    </table>`;
+  document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: parseFloat(e.target.value)||0}); renderBudget(); });
+  document.getElementById('addBudgetBtn').addEventListener('click', ()=>budgetOverlay.classList.add('show'));
+  document.getElementById('exportBudgetBtn').addEventListener('click', ()=>{
+    const header=['Category','Wedding','Planned (£)','Actual (£)','Remaining (£)'];
+    const aoa=[header, ...shown.map(b=>[b.cat, ({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country], b.planned, b.actual, b.planned-b.actual]), [], ['Total', '', plannedTotal, actualTotal, plannedTotal-actualTotal]];
+    exportRowsToExcel('wedding-budget.xlsx','Budget',aoa);
+  });
+  document.getElementById('budgetSearch').addEventListener('input', e=>{ state.budgetSearch=e.target.value; renderBudget(); });
+  document.getElementById('bf_country').addEventListener('change', e=>{ state.budgetFilters.country=e.target.value; renderBudget(); });
+  document.querySelectorAll('[data-actual]').forEach(inp=>inp.addEventListener('change', async ()=>{
+    await sb.from('budget_items').update({actual: parseFloat(inp.value)||0}).eq('id', inp.dataset.actual);
+    await loadBudget(); renderBudget();
+  }));
+  document.querySelectorAll('[data-rmbudget]').forEach(b=>b.addEventListener('click', async ()=>{
+    await sb.from('budget_items').delete().eq('id', b.dataset.rmbudget); await loadBudget(); renderBudget();
+  }));
+}
+const budgetOverlay = document.getElementById('budgetOverlay');
+document.getElementById('cancelBudget').addEventListener('click', ()=>budgetOverlay.classList.remove('show'));
+document.getElementById('saveBudget').addEventListener('click', async ()=>{
+  const cat = document.getElementById('b_cat').value.trim();
+  if(!cat){ alert('Please enter a category.'); return; }
+  await sb.from('budget_items').insert({wedding_id:weddingId, category:cat, country:document.getElementById('b_country').value, planned:parseFloat(document.getElementById('b_planned').value)||0, actual:parseFloat(document.getElementById('b_actual').value)||0});
+  ['b_cat','b_planned'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('b_actual').value='0';
+  budgetOverlay.classList.remove('show');
+  await loadBudget(); renderBudget();
+});
+
+/* ================= CHECKLIST TAB ================= */
+function renderChecklist(){
+  const groups = ["12+ months before","9–12 months before","6–9 months before","3–6 months before","1–3 months before","Final month"];
+  const q = state.checklistSearch.toLowerCase();
+  const gFilter = state.checklistFilters.group, dFilter = state.checklistFilters.done;
+  let html = `<div class="section-head">
+      <h2 style="font-size:22px;">Wedding checklist</h2>
+      <div class="searchbox"><input id="taskSearch" placeholder="Search tasks…" value="${state.checklistSearch}"></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="tf_group"><option value="">All timeframes</option>${groups.map(g=>`<option value="${g}" ${gFilter===g?'selected':''}>${g}</option>`).join('')}</select>
+        <select id="tf_done"><option value="">All</option><option value="done" ${dFilter==='done'?'selected':''}>Done</option><option value="pending" ${dFilter==='pending'?'selected':''}>Not done</option></select>
+        <button class="btn" id="addTaskBtn" style="width:auto;">+ Add task</button>
+        <button class="btn export" id="exportChecklistBtn" style="width:auto;">⬇ Excel</button>
+      </div>
+    </div>`;
+  if(!checklist.length){
+    html += `<div class="empty">No checklist yet. <button class="btn small" style="width:auto;" id="loadDefaultChecklistBtn">Load the standard wedding planning checklist</button></div>`;
+  }
+  const exportRows = [];
+  groups.forEach(g=>{
+    if(gFilter && gFilter!==g) return;
+    let items = checklist.filter(t=>t.group===g);
+    if(q) items = items.filter(t=>t.task.toLowerCase().includes(q));
+    if(dFilter==='done') items = items.filter(t=>t.done);
+    if(dFilter==='pending') items = items.filter(t=>!t.done);
+    if(!items.length) return;
+    const doneCount = items.filter(t=>t.done).length;
+    html += `<div class="checklist-group"><h3>${g}</h3><div class="cl-progress">${doneCount} of ${items.length} shown are done</div>`;
+    items.forEach(t=>{
+      exportRows.push([t.task, t.group, t.done?'Yes':'No']);
+      html += `<div class="cl-item ${t.done?'done':''}">
+        <input type="checkbox" data-taskdone="${t.id}" ${t.done?'checked':''}>
+        <span>${t.task}</span>
+        <button class="rmbtn" data-rmtask="${t.id}">Remove</button>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  document.getElementById('tab-checklist').innerHTML = html;
+  const loadDefaultBtn = document.getElementById('loadDefaultChecklistBtn');
+  if(loadDefaultBtn) loadDefaultBtn.addEventListener('click', async ()=>{
+    const rows = DEFAULT_CHECKLIST_TASKS.map(([task,group])=>({wedding_id:weddingId, task, group_name:group, done:false}));
+    await sb.from('checklist_items').insert(rows);
+    await loadChecklist(); renderChecklist();
+  });
+  document.getElementById('addTaskBtn').addEventListener('click', ()=>taskOverlay.classList.add('show'));
+  document.getElementById('exportChecklistBtn').addEventListener('click', ()=>{
+    const aoa=[['Task','Timeframe','Done'], ...exportRows];
+    exportRowsToExcel('wedding-checklist.xlsx','Checklist',aoa);
+  });
+  document.getElementById('taskSearch').addEventListener('input', e=>{ state.checklistSearch=e.target.value; renderChecklist(); });
+  document.getElementById('tf_group').addEventListener('change', e=>{ state.checklistFilters.group=e.target.value; renderChecklist(); });
+  document.getElementById('tf_done').addEventListener('change', e=>{ state.checklistFilters.done=e.target.value; renderChecklist(); });
+  document.querySelectorAll('[data-taskdone]').forEach(cb=>cb.addEventListener('change', async ()=>{
+    await sb.from('checklist_items').update({done:cb.checked}).eq('id', cb.dataset.taskdone);
+    await loadChecklist(); renderChecklist();
+  }));
+  document.querySelectorAll('[data-rmtask]').forEach(b=>b.addEventListener('click', async ()=>{
+    await sb.from('checklist_items').delete().eq('id', b.dataset.rmtask); await loadChecklist(); renderChecklist();
+  }));
+}
+const taskOverlay = document.getElementById('taskOverlay');
+document.getElementById('cancelTask').addEventListener('click', ()=>taskOverlay.classList.remove('show'));
+document.getElementById('saveTask').addEventListener('click', async ()=>{
+  const task = document.getElementById('t_task').value.trim();
+  if(!task){ alert('Please enter a task.'); return; }
+  await sb.from('checklist_items').insert({wedding_id:weddingId, task, group_name:document.getElementById('t_group').value, done:false});
+  document.getElementById('t_task').value='';
+  taskOverlay.classList.remove('show');
+  await loadChecklist(); renderChecklist();
+});
+
+/* ================= SETTINGS TAB ================= */
+function renderSettings(){
+  document.getElementById('tab-settings').innerHTML = `
+    <div class="section-head"><h2 style="font-size:22px;">Settings</h2></div>
+    <div class="dcards" style="grid-template-columns:1fr 1fr;">
+      <div class="dcard">
+        <div class="dlabel">Your names</div>
+        <div class="form-row" style="margin-top:10px;"><label>Partner 1's name</label><input id="s_name1" value="${wedding.partner1_name||''}"></div>
+        <div class="form-row"><label>Partner 2's name</label><input id="s_name2" value="${wedding.partner2_name||''}"></div>
+        <button class="btn small" id="saveNamesBtn" style="width:auto;">Save names</button>
+      </div>
+      <div class="dcard">
+        <div class="dlabel">Invite code</div>
+        <p style="font-size:13px;color:var(--ink-soft);margin:8px 0;">Share this with your partner if they haven't joined yet.</p>
+        <div class="invite-code" style="font-size:22px;">${wedding.invite_code}</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:8px;">Linked members: ${members.length}/2</div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--ink-soft);margin-top:24px;">Signed in as ${session.user.email}${mySlot?` — you are ${partnerName(mySlot)}`:''}.</p>
+  `;
+  document.getElementById('saveNamesBtn').addEventListener('click', ()=>{
+    saveWeddingField({partner1_name: document.getElementById('s_name1').value.trim()||'Partner 1', partner2_name: document.getElementById('s_name2').value.trim()||'Partner 2'});
+    document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`;
+    renderSettings();
+  });
+}
+
+/* ================= AUTH INIT ================= */
+(async function init(){
+  if(!configured) return;
+  const { data: { session: existing } } = await sb.auth.getSession();
+  if(existing){ await onAuthed(existing); }
+})();
+</script>
+</body>
+</html>
