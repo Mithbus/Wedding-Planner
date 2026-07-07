@@ -765,6 +765,7 @@ const DEFAULT_BUDGET_LINES = [
 /* ================= APP STATE ================= */
 let session=null, weddingId=null, mySlot=null, wedding=null, members=[];
 let venues=[], guests=[], budgetItems=[], checklist=[], calendarEvents=[], moodboardItems=[], compareIds=[];
+let venuePackagesCache = {};
 let state = {
   main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true,
   sort:'cost', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false,
@@ -903,13 +904,37 @@ function mapVenueRow(r){
   return {id:r.id, name:r.name, country:r.country, city:r.city, cap:r.cap, travel:r.travel, travelMin:r.travel_min, baseGuests:r.base_guests,
     hireLow:+r.hire_low||0, hireHigh:+r.hire_high||0, catLow:+r.cat_low||0, catHigh:+r.cat_high||0, extLow:+r.ext_low||0, extHigh:+r.ext_high||0,
     src:r.src, claude:r.claude!=null?+r.claude:null, claudeFactors:r.claude_factors||null, ratingP1:r.rating_p1!=null?+r.rating_p1:null, ratingP2:r.rating_p2!=null?+r.rating_p2:null,
-    pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, custom:r.custom,
+    pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, custom:r.custom, activePackageId:r.active_package_id||null,
     website:r.website_url||null, sourceLabel:r.source_label||null, sourceUrl:r.source_url||null, cardiffTime:r.cardiff_time||null, hartleburyTime:r.hartlebury_time||null};
 }
 async function loadVenues(){
   const { data } = await sb.from('venues').select('*').eq('wedding_id', weddingId).order('created_at');
   venues = (data||[]).map(mapVenueRow);
   document.getElementById('loadSeedArea').style.display = venues.length===0 ? 'block' : 'none';
+}
+async function loadVenuePackages(venueId){
+  if(venuePackagesCache[venueId]) return venuePackagesCache[venueId];
+  const { data } = await sb.from('venue_packages').select('*').eq('venue_id', venueId).order('location_type').order('tier');
+  const list = (data||[]).map(p=>({
+    id:p.id, name:p.package_name, locationType:p.location_type, tier:p.tier, baseGuests:p.base_guests,
+    hire:+p.hire||0, catering:+p.catering||0, cateringPerPerson: p.catering_per_person!=null?+p.catering_per_person:null,
+    extras:+p.extras||0, notes:p.notes||'', isDefault:!!p.is_default
+  }));
+  venuePackagesCache[venueId] = list;
+  return list;
+}
+async function applyVenuePackage(v, pkg){
+  const patch = {
+    hire_low: pkg.hire, hire_high: pkg.hire,
+    cat_low: pkg.catering, cat_high: pkg.catering,
+    ext_low: pkg.extras, ext_high: pkg.extras,
+    base_guests: pkg.baseGuests || v.baseGuests,
+    active_package_id: pkg.id
+  };
+  await sb.from('venues').update(patch).eq('id', v.id);
+  await loadVenues();
+  if(state.activeId === v.id) renderDetailPane();
+  if(state.main==='venues') renderVenueList(); else if(state.main==='dashboard') renderDashboard();
 }
 async function loadGuests(){
   const { data } = await sb.from('guests').select('*').eq('wedding_id', weddingId).order('created_at');
@@ -1412,6 +1437,7 @@ function renderDetailPane(){
 
       <div class="detail-grid">
         <div>
+          <div id="pkgPickerBlock" style="margin-bottom:18px;"></div>
           <div class="breakdown-title">Cost breakdown · ${guests_} guests · ${state.season==='peak'?'peak':'low'} season · click a segment to highlight</div>
           <div class="stack ${v.country}">
             <div class="seg-hire" data-seg="row-hire" style="width:${pctHire}%">${pctHire>10?fmt(parts.hire):''}</div>
@@ -1470,6 +1496,29 @@ function renderDetailPane(){
     const patch = mySlot===1 ? {rating_p1: parseFloat(mySliderEl.value)} : {rating_p2: parseFloat(mySliderEl.value)};
     await sb.from('venues').update(patch).eq('id', v.id);
   });
+  loadVenuePackages(v.id).then(packages=>{
+    if(state.activeId !== v.id) return;
+    renderPackagePicker(v, packages);
+  });
+}
+function renderPackagePicker(v, packages){
+  const block = document.getElementById('pkgPickerBlock');
+  if(!block) return;
+  if(!packages.length){ block.innerHTML=''; return; }
+  const activeId = v.activePackageId || (packages.find(p=>p.isDefault)||packages[0]).id;
+  const active = packages.find(p=>p.id===activeId) || packages[0];
+  block.innerHTML = `
+    <div class="breakdown-title" style="margin-bottom:10px;">Package · this venue has ${packages.length} option${packages.length>1?'s':''}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      ${packages.map(p=>`<button class="pill ${p.id===activeId?'active':''}" data-pkg="${p.id}">${p.name}</button>`).join('')}
+    </div>
+    ${active.cateringPerPerson!=null ? `<div class="basis-note" style="margin-top:8px;">${fmt(active.cateringPerPerson)}/head catering on this package</div>`:''}
+    ${active.notes ? `<div class="basis-note" style="margin-top:4px;">${active.notes}</div>` : ''}
+  `;
+  block.querySelectorAll('[data-pkg]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const pkg = packages.find(p=>p.id===btn.dataset.pkg);
+    if(pkg) applyVenuePackage(v, pkg);
+  }));
 }
 
 /* ================= COMPARE VIEW ================= */
