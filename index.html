@@ -193,6 +193,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .cost-table td:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;}
 .cost-table tr.total td{font-weight:700;border-bottom:none;padding-top:12px;}
 .basis-note{font-size:11.5px;color:var(--ink-soft);font-style:italic;margin-top:4px;}
+.line-items{margin:2px 0 10px 0;padding-left:14px;border-left:2px solid var(--line);display:none;}
+.line-items.show{display:block;}
+.line-item-row{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-soft);padding:4px 0;}
+.line-item-row b{color:var(--ink);font-family:'IBM Plex Mono',monospace;font-weight:600;}
+.drill-toggle{background:none;border:none;color:var(--info);font-size:11px;font-weight:600;width:auto;padding:0;margin-left:8px;}
 .rank-block{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
 .rank-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
 .rank-name{font-size:13px;font-weight:600;}
@@ -918,7 +923,8 @@ async function loadVenuePackages(venueId){
   const list = (data||[]).map(p=>({
     id:p.id, name:p.package_name, locationType:p.location_type, tier:p.tier, baseGuests:p.base_guests,
     hire:+p.hire||0, catering:+p.catering||0, cateringPerPerson: p.catering_per_person!=null?+p.catering_per_person:null,
-    extras:+p.extras||0, notes:p.notes||'', isDefault:!!p.is_default
+    extras:+p.extras||0, notes:p.notes||'', isDefault:!!p.is_default,
+    cateringItems: p.catering_items||[], extrasItems: p.extras_items||[]
   }));
   venuePackagesCache[venueId] = list;
   return list;
@@ -1398,6 +1404,15 @@ function deselectVenue(){
   closeDrawer();
 }
 document.getElementById('venueDrawerBackdrop').addEventListener('click', closeDrawer);
+document.getElementById('venueDetailPane').addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-drill]');
+  if(!btn) return;
+  const target = document.getElementById(btn.dataset.drill==='cat' ? 'drillCat' : 'drillExt');
+  if(target){
+    target.classList.toggle('show');
+    btn.textContent = target.classList.contains('show') ? 'hide' : 'details';
+  }
+});
 
 function renderDetailPane(){
   const pane = document.getElementById('venueDetailPane');
@@ -1451,8 +1466,14 @@ function renderDetailPane(){
           </div>
           <table class="cost-table">
             <tr id="row-hire"><td>Venue hire</td><td>${fmt(parts.hire)}</td></tr>
-            <tr id="row-cat"><td>Catering</td><td>${fmt(parts.cat)}</td></tr>
-            <tr id="row-ext"><td>Extras</td><td>${fmt(parts.ext)}</td></tr>
+            <tr id="row-cat"><td>Catering <button class="drill-toggle" data-drill="cat">details</button></td><td>${fmt(parts.cat)}</td></tr>
+          </table>
+          <div class="line-items" id="drillCat"></div>
+          <table class="cost-table">
+            <tr id="row-ext"><td>Extras <button class="drill-toggle" data-drill="ext">details</button></td><td>${fmt(parts.ext)}</td></tr>
+          </table>
+          <div class="line-items" id="drillExt"></div>
+          <table class="cost-table">
             <tr class="total"><td>Total</td><td>${fmt(parts.total)}</td></tr>
             <tr><td>Cost per head</td><td>${fmt(parts.total/guests_)}</td></tr>
           </table>
@@ -1501,10 +1522,18 @@ function renderDetailPane(){
     renderPackagePicker(v, packages);
   });
 }
+function lineItemsHTML(items){
+  if(!items || !items.length) return `<div class="line-item-row"><span>No itemized breakdown recorded yet.</span></div>`;
+  return items.map(it=>`<div class="line-item-row"><span>${it.label}</span><b>${fmt(it.amount)}</b></div>`).join('');
+}
 function renderPackagePicker(v, packages){
   const block = document.getElementById('pkgPickerBlock');
   if(!block) return;
-  if(!packages.length){ block.innerHTML=''; return; }
+  if(!packages.length){
+    block.innerHTML='';
+    ['drillCat','drillExt'].forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML=''; });
+    return;
+  }
   const activeId = v.activePackageId || (packages.find(p=>p.isDefault)||packages[0]).id;
   const active = packages.find(p=>p.id===activeId) || packages[0];
   block.innerHTML = `
@@ -1519,6 +1548,10 @@ function renderPackagePicker(v, packages){
     const pkg = packages.find(p=>p.id===btn.dataset.pkg);
     if(pkg) applyVenuePackage(v, pkg);
   }));
+  const drillCat = document.getElementById('drillCat');
+  const drillExt = document.getElementById('drillExt');
+  if(drillCat) drillCat.innerHTML = lineItemsHTML(active.cateringItems);
+  if(drillExt) drillExt.innerHTML = lineItemsHTML(active.extrasItems);
 }
 
 /* ================= COMPARE VIEW ================= */
@@ -1673,6 +1706,8 @@ function renderGuests(){
         <select id="gf_side" style="width:auto;"><option value="">All sides</option>${sideOptionsHTML(state.guestFilters.side)}</select>
         <select id="gf_attend" style="width:auto;"><option value="">All attendance</option><option value="uk" ${state.guestFilters.attend==='uk'?'selected':''}>UK only</option><option value="sl" ${state.guestFilters.attend==='sl'?'selected':''}>Sri Lanka only</option><option value="both" ${state.guestFilters.attend==='both'?'selected':''}>Both</option><option value="unsure" ${state.guestFilters.attend==='unsure'?'selected':''}>Not sure</option></select>
         <button class="btn" id="addGuestBtn" style="width:auto;">+ Add guest</button>
+        <button class="btn ghost" id="importGuestsBtn" style="width:auto;border-color:var(--line);">⬆ Import Excel</button>
+        <input type="file" id="importGuestsFile" accept=".xlsx,.xls,.csv" style="display:none;">
         <button class="btn export" id="exportGuestsBtn" style="width:auto;">⬇ Excel</button>
       </div>
     </div>
@@ -1688,6 +1723,54 @@ function renderGuests(){
       ${rows || '<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
     </table>`;
   document.getElementById('addGuestBtn').addEventListener('click', ()=>{ document.getElementById('g_side').innerHTML = sideOptionsHTML('partner1'); guestOverlay.classList.add('show'); });
+  document.getElementById('importGuestsBtn').addEventListener('click', ()=>document.getElementById('importGuestsFile').click());
+  document.getElementById('importGuestsFile').addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    try{
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      if(!rows.length){ alert('No rows found in that file.'); e.target.value=''; return; }
+      const findCol = (row, candidates) => {
+        const keys = Object.keys(row);
+        for(const c of candidates){
+          const hit = keys.find(k=>k.trim().toLowerCase()===c);
+          if(hit) return hit;
+        }
+        return null;
+      };
+      const sample = rows[0];
+      const nameCol = findCol(sample, ['name','full name','guest name']);
+      if(!nameCol){ alert('Could not find a "Name" column in that file. Please include a column called Name.'); e.target.value=''; return; }
+      const sideCol = findCol(sample, ['whose guest','side']);
+      const attendCol = findCol(sample, ['likely to attend','attend','attending']);
+      const contactCol = findCol(sample, ['contact','email','phone']);
+      const sideMap = {"mithun's":'partner1',"gayathma's":'partner2','both':'both','both / mutual':'both'};
+      const attendMap = {'both weddings':'both','both':'both','uk only':'uk','uk':'uk','sri lanka only':'sl','sri lanka':'sl','sl':'sl','not sure yet':'unsure','not sure':'unsure','unsure':'unsure'};
+      const inserts = rows.map(r=>{
+        const name = (r[nameCol]||'').toString().trim();
+        if(!name) return null;
+        const rawSide = sideCol ? (r[sideCol]||'').toString().trim().toLowerCase() : '';
+        const rawAttend = attendCol ? (r[attendCol]||'').toString().trim().toLowerCase() : '';
+        return {
+          wedding_id: weddingId, name,
+          side: sideMap[rawSide] || 'both',
+          attend: attendMap[rawAttend] || 'unsure',
+          contact: contactCol ? (r[contactCol]||'').toString().trim() : ''
+        };
+      }).filter(Boolean);
+      if(!inserts.length){ alert('No valid rows with a name were found.'); e.target.value=''; return; }
+      if(!confirm(`Import ${inserts.length} guest${inserts.length>1?'s':''} from this file?`)){ e.target.value=''; return; }
+      await sb.from('guests').insert(inserts);
+      await loadGuests(); renderGuests();
+      alert(`Imported ${inserts.length} guest${inserts.length>1?'s':''}.`);
+    }catch(err){
+      alert('Could not read that file. Make sure it\'s a valid .xlsx, .xls, or .csv file.');
+    }
+    e.target.value='';
+  });
   document.getElementById('exportGuestsBtn').addEventListener('click', ()=>{
     const header=['Name','Whose guest','Contact','Likely to attend'];
     const aoa=[header, ...shown.map(g=>[g.name, g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.contact||'', ({both:'Both weddings',uk:'UK only',sl:'Sri Lanka only',unsure:'Not sure yet'})[g.attend]])];
