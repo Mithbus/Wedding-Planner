@@ -193,11 +193,16 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .cost-table td:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;}
 .cost-table tr.total td{font-weight:700;border-bottom:none;padding-top:12px;}
 .basis-note{font-size:11.5px;color:var(--ink-soft);font-style:italic;margin-top:4px;}
-.line-items{margin:2px 0 10px 0;padding-left:14px;border-left:2px solid var(--line);display:none;}
-.line-items.show{display:block;}
+.line-items{max-height:0;overflow:hidden;opacity:0;padding-left:14px;border-left:2px solid var(--line);transition:max-height .25s ease, opacity .2s ease, margin .25s ease;margin:0;}
+.line-items.show{max-height:800px;opacity:1;margin:2px 0 10px 0;}
 .line-item-row{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-soft);padding:4px 0;}
 .line-item-row b{color:var(--ink);font-family:'IBM Plex Mono',monospace;font-weight:600;}
-.drill-toggle{background:none;border:none;color:var(--info);font-size:11px;font-weight:600;width:auto;padding:0;margin-left:8px;}
+.drill-toggle{background:none;border:none;color:var(--info);font-size:11px;font-weight:600;width:auto;padding:0;margin-left:8px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;}
+.drill-toggle .caret{display:inline-block;font-size:9px;transition:transform .2s ease;}
+.drill-toggle.open .caret{transform:rotate(90deg);}
+.info-card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
+.info-card .breakdown-title{margin-bottom:10px;}
+.info-card:last-child{margin-bottom:0;}
 .rank-block{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px;}
 .rank-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
 .rank-name{font-size:13px;font-weight:600;}
@@ -243,6 +248,22 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .addmode-row{display:flex;gap:8px;margin-bottom:18px;}
 .addmode-btn{flex:1;padding:10px;border-radius:9px;border:1px solid var(--line);background:var(--paper);font-size:12.5px;font-weight:600;color:var(--ink-soft);}
 .addmode-btn.active{background:var(--ink);color:var(--paper-raised);border-color:var(--ink);}
+
+.section-divider{border:none;border-top:1px solid var(--line);margin:24px 0;}
+.subsection-title{font-family:'Fraunces',serif;font-size:16px;margin-bottom:4px;}
+.subsection-sub{font-size:12px;color:var(--ink-soft);margin-bottom:14px;}
+.item-editor-row{display:flex;gap:8px;margin-bottom:7px;align-items:center;}
+.item-editor-row input[type=text]{flex:2;}
+.item-editor-row .amt-wrap{flex:1;}
+.item-editor-row .rm-item-row{width:auto;flex:0 0 auto;background:none;border:none;color:var(--flag);font-size:14px;padding:0 4px;}
+.item-add-btn{font-size:12px;color:var(--info);background:none;border:none;width:auto;font-weight:600;padding:0;margin-top:2px;}
+.pkg-list{margin-top:6px;}
+.pkg-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--paper);}
+.pkg-row-info{font-size:13px;}
+.pkg-row-info b{font-weight:600;}
+.pkg-row-info small{display:block;color:var(--ink-soft);font-size:11.5px;margin-top:2px;}
+.pkg-row-actions{display:flex;gap:6px;flex:0 0 auto;}
+.pkg-row-actions button{width:auto;font-size:11.5px;padding:5px 10px;}
 
 .plain-table{width:100%;border-collapse:collapse;background:var(--paper-raised);border-radius:12px;overflow:hidden;margin-top:10px;}
 .plain-table th{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);background:var(--paper);}
@@ -502,21 +523,64 @@ footer{text-align:center;margin-top:50px;padding-top:22px;border-top:1px solid v
         <div class="form-row"><label>Venue hire — low season (£)</label><input id="f_hireLow" type="number"></div>
         <div class="form-row"><label>Venue hire — peak season (£)</label><input id="f_hireHigh" type="number"></div>
       </div>
+      <div class="item-editor" data-itemkey="hire"></div>
       <div class="form-grid2">
         <div class="form-row"><label>Catering — low season (£)</label><input id="f_catLow" type="number"></div>
         <div class="form-row"><label>Catering — peak season (£)</label><input id="f_catHigh" type="number"></div>
       </div>
+      <div class="item-editor" data-itemkey="cat"></div>
       <div class="form-grid2">
         <div class="form-row"><label>Extras (corkage/accom./service, £) — low</label><input id="f_extLow" type="number" value="0"></div>
         <div class="form-row"><label>Extras — peak</label><input id="f_extHigh" type="number" value="0"></div>
       </div>
+      <div class="item-editor" data-itemkey="ext"></div>
       <div class="form-row"><label>Pros</label><textarea id="f_pros" placeholder="One or two sentences"></textarea></div>
       <div class="form-row"><label>Cons</label><textarea id="f_cons" placeholder="One or two sentences"></textarea></div>
       <div class="form-row"><label>Notes</label><textarea id="f_notes" placeholder="Anything else worth remembering"></textarea></div>
+      <hr class="section-divider" id="pkgSectionDivider" style="display:none;">
+      <div id="pkgManageSection" style="display:none;">
+        <div class="subsection-title">Packages (optional)</div>
+        <p class="subsection-sub">Add multiple priced options — e.g. indoor/outdoor, or different tiers. They'll show as pill buttons in the venue view; picking one updates the live cost figures above.</p>
+        <div class="pkg-list" id="pkgManageList"></div>
+        <button type="button" class="btn ghost small" id="addPkgBtn" style="width:auto;">+ Add package</button>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn ghost" id="cancelAdd">Cancel</button>
       <button class="btn" id="saveAdd">Save venue</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="packageModalOverlay">
+  <div class="modal">
+    <h2 id="pkgModalTitle">Add a package</h2>
+    <p class="modal-sub">A priced option for this venue — e.g. "Indoor · Tier 2".</p>
+    <div class="form-row"><label>Package name</label><input id="p_name" placeholder="e.g. Indoor · Tier 2"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Location type</label><input id="p_locationType" placeholder="e.g. Indoor, Outdoor"></div>
+      <div class="form-row"><label>Tier</label><input id="p_tier" type="number" placeholder="e.g. 2"></div>
+    </div>
+    <div class="form-row"><label>Guest count this package is priced for</label><input id="p_baseGuests" type="number" placeholder="150"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Venue hire (£)</label><input id="p_hire" type="number"></div>
+      <div class="form-row"><label>Extras (£)</label><input id="p_extras" type="number" value="0"></div>
+    </div>
+    <div class="item-editor" data-itemkey="hire"></div>
+    <div class="form-grid2">
+      <div class="form-row"><label>Catering (£)</label><input id="p_catering" type="number"></div>
+      <div class="form-row"><label>Catering per head (£, optional)</label><input id="p_cateringPP" type="number"></div>
+    </div>
+    <div class="item-editor" data-itemkey="cat"></div>
+    <div class="item-editor" data-itemkey="ext"></div>
+    <div class="form-row"><label>Notes</label><textarea id="p_notes" placeholder="Anything worth remembering about this package"></textarea></div>
+    <div class="form-row" style="display:flex;align-items:center;gap:8px;flex-direction:row;"><input type="checkbox" id="p_isDefault" style="width:auto;"><label style="margin:0;">Default package for this venue</label></div>
+    <div class="modal-actions" style="justify-content:space-between;">
+      <button class="btn danger small" id="deletePkgBtn" style="width:auto;display:none;">Delete package</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn ghost" id="cancelPkg">Cancel</button>
+        <button class="btn" id="savePkg">Save package</button>
+      </div>
     </div>
   </div>
 </div>
@@ -910,7 +974,8 @@ function mapVenueRow(r){
     hireLow:+r.hire_low||0, hireHigh:+r.hire_high||0, catLow:+r.cat_low||0, catHigh:+r.cat_high||0, extLow:+r.ext_low||0, extHigh:+r.ext_high||0,
     src:r.src, claude:r.claude!=null?+r.claude:null, claudeFactors:r.claude_factors||null, ratingP1:r.rating_p1!=null?+r.rating_p1:null, ratingP2:r.rating_p2!=null?+r.rating_p2:null,
     pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, custom:r.custom, activePackageId:r.active_package_id||null,
-    website:r.website_url||null, sourceLabel:r.source_label||null, sourceUrl:r.source_url||null, cardiffTime:r.cardiff_time||null, hartleburyTime:r.hartlebury_time||null};
+    website:r.website_url||null, sourceLabel:r.source_label||null, sourceUrl:r.source_url||null, cardiffTime:r.cardiff_time||null, hartleburyTime:r.hartlebury_time||null,
+    hireItems:r.hire_items||[], cateringItems:r.catering_items||[], extrasItems:r.extras_items||[]};
 }
 async function loadVenues(){
   const { data } = await sb.from('venues').select('*').eq('wedding_id', weddingId).order('created_at');
@@ -924,7 +989,7 @@ async function loadVenuePackages(venueId){
     id:p.id, name:p.package_name, locationType:p.location_type, tier:p.tier, baseGuests:p.base_guests,
     hire:+p.hire||0, catering:+p.catering||0, cateringPerPerson: p.catering_per_person!=null?+p.catering_per_person:null,
     extras:+p.extras||0, notes:p.notes||'', isDefault:!!p.is_default,
-    cateringItems: p.catering_items||[], extrasItems: p.extras_items||[]
+    hireItems: p.hire_items||[], cateringItems: p.catering_items||[], extrasItems: p.extras_items||[]
   }));
   venuePackagesCache[venueId] = list;
   return list;
@@ -1013,6 +1078,44 @@ function exportRowsToExcel(filename, sheetName, aoa){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   XLSX.writeFile(wb, filename);
+}
+function exportVenueToExcel(v, guestCount, parts, packages){
+  const wb = XLSX.utils.book_new();
+  const active = activePackageOf(v, packages);
+  const summary = [
+    ['Venue', v.name],
+    ['Country', v.country==='uk'?'United Kingdom':'Sri Lanka'],
+    ['City / region', v.city||'—'],
+    ['Guest count used', guestCount],
+    ['Season', state.season==='peak'?'Peak':'Low'],
+    ['Active package', active ? active.name : '—'],
+    [],
+    ['Cost line', 'Amount (£)'],
+    ['Venue hire', Math.round(parts.hire)],
+    ['Catering', Math.round(parts.cat)],
+    ['Extras', Math.round(parts.ext)],
+    ['Total', Math.round(parts.total)],
+    ['Cost per head', Math.round(parts.total/guestCount)],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Summary');
+
+  const itemRows = [['Cost area','Line item','Amount (£)']];
+  const hireItems = active ? active.hireItems : v.hireItems;
+  const cateringItems = active ? active.cateringItems : v.cateringItems;
+  const extrasItems = active ? active.extrasItems : v.extrasItems;
+  [['Venue hire',hireItems], ['Catering',cateringItems], ['Extras',extrasItems]].forEach(([label,items])=>{
+    if(items && items.length){ items.forEach(it=>itemRows.push([label, it.label, +it.amount||0])); }
+    else itemRows.push([label, 'No itemized breakdown recorded', '']);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(itemRows), 'Itemized costs');
+
+  if(packages.length){
+    const pkgRows = [['Package','Location type','Tier','Base guests','Hire (£)','Catering (£)','Catering per head (£)','Extras (£)','Default?']];
+    packages.forEach(p=>pkgRows.push([p.name, p.locationType||'', p.tier||'', p.baseGuests||'', p.hire, p.catering, p.cateringPerPerson!=null?p.cateringPerPerson:'', p.extras, p.isDefault?'Yes':'']));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pkgRows), 'Packages');
+  }
+  const safeName = (v.name||'venue').replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  XLSX.writeFile(wb, `${safeName}-costs.xlsx`);
 }
 
 /* ================= MAIN TAB SWITCHING ================= */
@@ -1404,15 +1507,20 @@ function deselectVenue(){
   closeDrawer();
 }
 document.getElementById('venueDrawerBackdrop').addEventListener('click', closeDrawer);
+const DRILL_TARGETS = {hire:'drillHire', cat:'drillCat', ext:'drillExt'};
 document.getElementById('venueDetailPane').addEventListener('click', (e)=>{
   const btn = e.target.closest('[data-drill]');
   if(!btn) return;
-  const target = document.getElementById(btn.dataset.drill==='cat' ? 'drillCat' : 'drillExt');
+  const target = document.getElementById(DRILL_TARGETS[btn.dataset.drill]);
   if(target){
-    target.classList.toggle('show');
-    btn.textContent = target.classList.contains('show') ? 'hide' : 'details';
+    const showing = target.classList.toggle('show');
+    btn.classList.toggle('open', showing);
+    btn.querySelector('.label').textContent = showing ? 'hide' : 'details';
   }
 });
+function drillBtn(key){
+  return `<button class="drill-toggle" data-drill="${key}"><span class="caret">▸</span><span class="label">details</span></button>`;
+}
 
 function renderDetailPane(){
   const pane = document.getElementById('venueDetailPane');
@@ -1444,6 +1552,7 @@ function renderDetailPane(){
         <div class="detail-actions">
           <button class="btn ${isCmp?'':'ghost'} small" id="cmpBtn">${isCmp?'✓ In compare':'+ Add to compare'}</button>
           <button class="btn ghost small" id="editBtn">Edit / add quote</button>
+          <button class="btn ghost small" id="exportVenueBtn">⬇ Excel</button>
           ${v.custom ? '<button class="btn danger small" id="delBtn">Delete</button>' : ''}
         </div>
       </div>
@@ -1452,34 +1561,42 @@ function renderDetailPane(){
 
       <div class="detail-grid">
         <div>
-          <div id="pkgPickerBlock" style="margin-bottom:18px;"></div>
-          <div class="breakdown-title">Cost breakdown · ${guests_} guests · ${state.season==='peak'?'peak':'low'} season · click a segment to highlight</div>
-          <div class="stack ${v.country}">
-            <div class="seg-hire" data-seg="row-hire" style="width:${pctHire}%">${pctHire>10?fmt(parts.hire):''}</div>
-            <div class="seg-catering" data-seg="row-cat" style="width:${pctCat}%">${pctCat>10?fmt(parts.cat):''}</div>
-            <div class="seg-extras" data-seg="row-ext" style="width:${pctExt}%">${pctExt>10?fmt(parts.ext):''}</div>
+          <div id="pkgPickerBlock"></div>
+          <div class="info-card">
+            <div class="breakdown-title">Cost breakdown · ${guests_} guests · ${state.season==='peak'?'peak':'low'} season · click a segment to highlight</div>
+            <div class="stack ${v.country}">
+              <div class="seg-hire" data-seg="row-hire" style="width:${pctHire}%">${pctHire>10?fmt(parts.hire):''}</div>
+              <div class="seg-catering" data-seg="row-cat" style="width:${pctCat}%">${pctCat>10?fmt(parts.cat):''}</div>
+              <div class="seg-extras" data-seg="row-ext" style="width:${pctExt}%">${pctExt>10?fmt(parts.ext):''}</div>
+            </div>
+            <div class="legend">
+              <span><i style="background:${v.country==='uk'?'#3B4A38':'#7A5510'}"></i>Venue hire</span>
+              <span><i style="background:${v.country==='uk'?'#6E8367':'#B5811E'}"></i>Catering</span>
+              <span><i style="background:${v.country==='uk'?'#B7C4AE':'#E4C784'}"></i>Extras</span>
+            </div>
+            <table class="cost-table">
+              <tr id="row-hire"><td>Venue hire ${drillBtn('hire')}</td><td>${fmt(parts.hire)}</td></tr>
+            </table>
+            <div class="line-items" id="drillHire"></div>
+            <table class="cost-table">
+              <tr id="row-cat"><td>Catering ${drillBtn('cat')}</td><td>${fmt(parts.cat)}</td></tr>
+            </table>
+            <div class="line-items" id="drillCat"></div>
+            <table class="cost-table">
+              <tr id="row-ext"><td>Extras ${drillBtn('ext')}</td><td>${fmt(parts.ext)}</td></tr>
+            </table>
+            <div class="line-items" id="drillExt"></div>
+            <table class="cost-table">
+              <tr class="total"><td>Total</td><td>${fmt(parts.total)}</td></tr>
+              <tr><td>Cost per head</td><td>${fmt(parts.total/guests_)}</td></tr>
+            </table>
           </div>
-          <div class="legend">
-            <span><i style="background:${v.country==='uk'?'#3B4A38':'#7A5510'}"></i>Venue hire</span>
-            <span><i style="background:${v.country==='uk'?'#6E8367':'#B5811E'}"></i>Catering</span>
-            <span><i style="background:${v.country==='uk'?'#B7C4AE':'#E4C784'}"></i>Extras</span>
+          <div class="info-card">
+            <div class="breakdown-title">Notes &amp; source</div>
+            <div class="basis-note" style="font-style:normal;">${v.notes||'No notes yet.'}</div>
+            <div class="basis-note" style="margin-top:6px;">Cost source: ${v.sourceUrl ? `<a href="${v.sourceUrl}" target="_blank" rel="noopener" style="color:var(--info);">${v.sourceLabel||'Link'}</a>` : (v.sourceLabel || 'Not recorded')}</div>
           </div>
-          <table class="cost-table">
-            <tr id="row-hire"><td>Venue hire</td><td>${fmt(parts.hire)}</td></tr>
-            <tr id="row-cat"><td>Catering <button class="drill-toggle" data-drill="cat">details</button></td><td>${fmt(parts.cat)}</td></tr>
-          </table>
-          <div class="line-items" id="drillCat"></div>
-          <table class="cost-table">
-            <tr id="row-ext"><td>Extras <button class="drill-toggle" data-drill="ext">details</button></td><td>${fmt(parts.ext)}</td></tr>
-          </table>
-          <div class="line-items" id="drillExt"></div>
-          <table class="cost-table">
-            <tr class="total"><td>Total</td><td>${fmt(parts.total)}</td></tr>
-            <tr><td>Cost per head</td><td>${fmt(parts.total/guests_)}</td></tr>
-          </table>
-          <div class="basis-note">${v.notes||''}</div>
-          <div class="basis-note" style="margin-top:6px;">Cost source: ${v.sourceUrl ? `<a href="${v.sourceUrl}" target="_blank" rel="noopener" style="color:var(--info);">${v.sourceLabel||'Link'}</a>` : (v.sourceLabel || 'Not recorded')}</div>
-          <div class="pc-block">
+          <div class="info-card pc-block" style="margin-top:0;">
             <h3 style="font-size:15px;">Pros &amp; cons</h3>
             <ul class="pc-list pro"><li>${v.pros||'—'}</li></ul>
             <ul class="pc-list con"><li>${v.cons||'—'}</li></ul>
@@ -1517,41 +1634,55 @@ function renderDetailPane(){
     const patch = mySlot===1 ? {rating_p1: parseFloat(mySliderEl.value)} : {rating_p2: parseFloat(mySliderEl.value)};
     await sb.from('venues').update(patch).eq('id', v.id);
   });
+  renderPackagePicker(v, []);
   loadVenuePackages(v.id).then(packages=>{
     if(state.activeId !== v.id) return;
     renderPackagePicker(v, packages);
+  });
+  document.getElementById('exportVenueBtn').addEventListener('click', async ()=>{
+    const packages = await loadVenuePackages(v.id);
+    exportVenueToExcel(v, guests_, parts, packages);
   });
 }
 function lineItemsHTML(items){
   if(!items || !items.length) return `<div class="line-item-row"><span>No itemized breakdown recorded yet.</span></div>`;
   return items.map(it=>`<div class="line-item-row"><span>${it.label}</span><b>${fmt(it.amount)}</b></div>`).join('');
 }
+function activePackageOf(v, packages){
+  if(!packages.length) return null;
+  const activeId = v.activePackageId || (packages.find(p=>p.isDefault)||packages[0]).id;
+  return packages.find(p=>p.id===activeId) || packages[0];
+}
 function renderPackagePicker(v, packages){
   const block = document.getElementById('pkgPickerBlock');
   if(!block) return;
+  const active = activePackageOf(v, packages);
   if(!packages.length){
-    block.innerHTML='';
-    ['drillCat','drillExt'].forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML=''; });
-    return;
+    block.innerHTML = '';
+  } else {
+    block.innerHTML = `
+      <div class="info-card">
+        <div class="breakdown-title">Package · this venue has ${packages.length} option${packages.length>1?'s':''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${packages.map(p=>`<button class="pill ${p.id===active.id?'active':''}" data-pkg="${p.id}">${p.name}</button>`).join('')}
+        </div>
+        ${active.cateringPerPerson!=null ? `<div class="basis-note" style="margin-top:8px;">${fmt(active.cateringPerPerson)}/head catering on this package</div>`:''}
+        ${active.notes ? `<div class="basis-note" style="margin-top:4px;">${active.notes}</div>` : ''}
+      </div>`;
+    block.querySelectorAll('[data-pkg]').forEach(btn=>btn.addEventListener('click', ()=>{
+      const pkg = packages.find(p=>p.id===btn.dataset.pkg);
+      if(pkg) applyVenuePackage(v, pkg);
+    }));
   }
-  const activeId = v.activePackageId || (packages.find(p=>p.isDefault)||packages[0]).id;
-  const active = packages.find(p=>p.id===activeId) || packages[0];
-  block.innerHTML = `
-    <div class="breakdown-title" style="margin-bottom:10px;">Package · this venue has ${packages.length} option${packages.length>1?'s':''}</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;">
-      ${packages.map(p=>`<button class="pill ${p.id===activeId?'active':''}" data-pkg="${p.id}">${p.name}</button>`).join('')}
-    </div>
-    ${active.cateringPerPerson!=null ? `<div class="basis-note" style="margin-top:8px;">${fmt(active.cateringPerPerson)}/head catering on this package</div>`:''}
-    ${active.notes ? `<div class="basis-note" style="margin-top:4px;">${active.notes}</div>` : ''}
-  `;
-  block.querySelectorAll('[data-pkg]').forEach(btn=>btn.addEventListener('click', ()=>{
-    const pkg = packages.find(p=>p.id===btn.dataset.pkg);
-    if(pkg) applyVenuePackage(v, pkg);
-  }));
+  const hireItems = active ? active.hireItems : v.hireItems;
+  const cateringItems = active ? active.cateringItems : v.cateringItems;
+  const extrasItems = active ? active.extrasItems : v.extrasItems;
+  const drillHire = document.getElementById('drillHire');
   const drillCat = document.getElementById('drillCat');
   const drillExt = document.getElementById('drillExt');
-  if(drillCat) drillCat.innerHTML = lineItemsHTML(active.cateringItems);
-  if(drillExt) drillExt.innerHTML = lineItemsHTML(active.extrasItems);
+  if(drillHire) drillHire.innerHTML = lineItemsHTML(hireItems);
+  if(drillCat) drillCat.innerHTML = lineItemsHTML(cateringItems);
+  if(drillExt) drillExt.innerHTML = lineItemsHTML(extrasItems);
 }
 
 /* ================= COMPARE VIEW ================= */
@@ -1612,7 +1743,72 @@ function renderCompare(){
 
 /* ================= ADD / EDIT VENUE MODAL ================= */
 const overlay = document.getElementById('modalOverlay');
-document.getElementById('addBtn').addEventListener('click', ()=>{ state.editingId=null; resetVenueForm(); setAddMode('quick'); document.getElementById('modalTitle').textContent='Add a venue'; document.getElementById('modalSub').textContent="Choose how much detail you have right now."; document.getElementById('addModeRow').style.display='flex'; overlay.classList.add('show'); });
+const packageOverlay = document.getElementById('packageModalOverlay');
+let itemState = {hire:[], cat:[], ext:[]};
+let pkgItemState = {hire:[], cat:[], ext:[]};
+const ITEM_STATE_BY_SCOPE = {modalOverlay:itemState, packageModalOverlay:pkgItemState};
+let currentPkgList = [];
+let pkgEditVenueId = null;
+let editingPkgId = null;
+
+function cloneItems(items){ return (items||[]).map(it=>({label:it.label||'', amount:+it.amount||0})); }
+function renderItemEditor(scopeId, key){
+  const container = document.querySelector(`#${scopeId} [data-itemkey="${key}"]`);
+  if(!container) return;
+  const items = ITEM_STATE_BY_SCOPE[scopeId][key];
+  const label = {hire:'venue hire', cat:'catering', ext:'extras'}[key];
+  container.innerHTML = `
+    <div class="basis-note" style="margin:8px 0 4px;font-style:normal;">Itemized ${label} breakdown (optional)</div>
+    ${items.map((it,i)=>`
+      <div class="item-editor-row" data-idx="${i}">
+        <input type="text" class="it-label" placeholder="e.g. Room hire" value="${(it.label||'').replace(/"/g,'&quot;')}">
+        <div class="amt-wrap"><input type="number" class="it-amount" value="${it.amount||''}"></div>
+        <button type="button" class="rm-item-row" data-rmitem="${key}:${i}">✕</button>
+      </div>`).join('')}
+    <button type="button" class="item-add-btn" data-additem="${key}">+ Add line item</button>`;
+}
+function renderAllItemEditors(scopeId){ ['hire','cat','ext'].forEach(k=>renderItemEditor(scopeId, k)); }
+document.addEventListener('click', (e)=>{
+  const addBtn = e.target.closest('[data-additem]');
+  if(addBtn){
+    const scopeEl = addBtn.closest('.modal-overlay'); if(!scopeEl) return;
+    const key = addBtn.dataset.additem;
+    ITEM_STATE_BY_SCOPE[scopeEl.id][key].push({label:'', amount:0});
+    renderItemEditor(scopeEl.id, key);
+    return;
+  }
+  const rmBtn = e.target.closest('[data-rmitem]');
+  if(rmBtn){
+    const scopeEl = rmBtn.closest('.modal-overlay'); if(!scopeEl) return;
+    const [key, idxStr] = rmBtn.dataset.rmitem.split(':');
+    ITEM_STATE_BY_SCOPE[scopeEl.id][key].splice(+idxStr, 1);
+    renderItemEditor(scopeEl.id, key);
+    return;
+  }
+});
+document.addEventListener('input', (e)=>{
+  const row = e.target.closest('.item-editor-row');
+  if(!row) return;
+  const container = row.closest('[data-itemkey]');
+  const scopeEl = row.closest('.modal-overlay');
+  if(!container || !scopeEl) return;
+  const stateObj = ITEM_STATE_BY_SCOPE[scopeEl.id];
+  const key = container.dataset.itemkey;
+  const idx = +row.dataset.idx;
+  if(!stateObj[key][idx]) return;
+  if(e.target.classList.contains('it-label')) stateObj[key][idx].label = e.target.value;
+  else if(e.target.classList.contains('it-amount')) stateObj[key][idx].amount = parseFloat(e.target.value)||0;
+});
+
+document.getElementById('addBtn').addEventListener('click', ()=>{
+  state.editingId=null; resetVenueForm(); setAddMode('quick');
+  document.getElementById('modalTitle').textContent='Add a venue';
+  document.getElementById('modalSub').textContent="Choose how much detail you have right now.";
+  document.getElementById('addModeRow').style.display='flex';
+  document.getElementById('pkgSectionDivider').style.display='none';
+  document.getElementById('pkgManageSection').style.display='none';
+  overlay.classList.add('show');
+});
 document.getElementById('cancelAdd').addEventListener('click', ()=>overlay.classList.remove('show'));
 document.querySelectorAll('.addmode-btn').forEach(b=>b.addEventListener('click', ()=>setAddMode(b.dataset.mode)));
 function setAddMode(mode){
@@ -1624,7 +1820,103 @@ document.getElementById('f_country').addEventListener('change', e=>{ document.ge
 function resetVenueForm(){
   ['f_name','f_city','f_cap','f_travel','f_baseGuests','f_hireLow','f_hireHigh','f_catLow','f_catHigh','f_extLow','f_extHigh','f_pros','f_cons','f_notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_country').value='uk';
+  itemState.hire=[]; itemState.cat=[]; itemState.ext=[];
+  renderAllItemEditors('modalOverlay');
 }
+function invalidatePackagesCache(venueId){ delete venuePackagesCache[venueId]; }
+async function refreshPkgManageSection(venueId){
+  currentPkgList = await loadVenuePackages(venueId);
+  renderPkgManageList();
+}
+function renderPkgManageList(){
+  const list = document.getElementById('pkgManageList');
+  if(!list) return;
+  if(!currentPkgList.length){
+    list.innerHTML = `<div class="basis-note" style="font-style:normal;">No packages added yet — the fields above are used as the venue's only quote.</div>`;
+    return;
+  }
+  list.innerHTML = currentPkgList.map(p=>`
+    <div class="pkg-row">
+      <div class="pkg-row-info">
+        <b>${p.name}</b>${p.isDefault?' <span class="basis-note" style="display:inline;">(default)</span>':''}
+        <small>${[p.locationType, p.tier?('Tier '+p.tier):'', p.baseGuests?(p.baseGuests+' guests'):''].filter(Boolean).join(' · ')||'—'} · ${fmt(p.hire)} hire · ${fmt(p.catering)} catering · ${fmt(p.extras)} extras</small>
+      </div>
+      <div class="pkg-row-actions">
+        <button type="button" class="btn ghost" data-editpkg="${p.id}">Edit</button>
+        <button type="button" class="btn danger" data-delpkg="${p.id}">Delete</button>
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('[data-editpkg]').forEach(b=>b.addEventListener('click', ()=>openPackageModal(pkgEditVenueId, currentPkgList.find(p=>p.id===b.dataset.editpkg))));
+  list.querySelectorAll('[data-delpkg]').forEach(b=>b.addEventListener('click', ()=>deletePackage(b.dataset.delpkg, pkgEditVenueId)));
+}
+async function deletePackage(pkgId, venueId){
+  if(!confirm('Delete this package option?')) return;
+  await sb.from('venue_packages').delete().eq('id', pkgId);
+  const v = venues.find(x=>x.id===venueId);
+  if(v && v.activePackageId===pkgId){ await sb.from('venues').update({active_package_id:null}).eq('id', venueId); }
+  invalidatePackagesCache(venueId);
+  await loadVenues();
+  await refreshPkgManageSection(venueId);
+  if(state.activeId===venueId) renderDetailPane();
+}
+function openPackageModal(venueId, pkg){
+  pkgEditVenueId = venueId;
+  editingPkgId = pkg ? pkg.id : null;
+  document.getElementById('pkgModalTitle').textContent = pkg ? 'Edit package' : 'Add a package';
+  document.getElementById('p_name').value = pkg ? pkg.name : '';
+  document.getElementById('p_locationType').value = pkg ? (pkg.locationType||'') : '';
+  document.getElementById('p_tier').value = pkg && pkg.tier!=null ? pkg.tier : '';
+  document.getElementById('p_baseGuests').value = pkg && pkg.baseGuests!=null ? pkg.baseGuests : '';
+  document.getElementById('p_hire').value = pkg ? pkg.hire : 0;
+  document.getElementById('p_catering').value = pkg ? pkg.catering : 0;
+  document.getElementById('p_cateringPP').value = pkg && pkg.cateringPerPerson!=null ? pkg.cateringPerPerson : '';
+  document.getElementById('p_extras').value = pkg ? pkg.extras : 0;
+  document.getElementById('p_notes').value = pkg ? (pkg.notes||'') : '';
+  document.getElementById('p_isDefault').checked = pkg ? !!pkg.isDefault : false;
+  pkgItemState.hire = cloneItems(pkg ? pkg.hireItems : []);
+  pkgItemState.cat = cloneItems(pkg ? pkg.cateringItems : []);
+  pkgItemState.ext = cloneItems(pkg ? pkg.extrasItems : []);
+  renderAllItemEditors('packageModalOverlay');
+  document.getElementById('deletePkgBtn').style.display = pkg ? 'inline-block' : 'none';
+  packageOverlay.classList.add('show');
+}
+document.getElementById('addPkgBtn').addEventListener('click', ()=>openPackageModal(pkgEditVenueId, null));
+document.getElementById('cancelPkg').addEventListener('click', ()=>packageOverlay.classList.remove('show'));
+document.getElementById('deletePkgBtn').addEventListener('click', async ()=>{
+  if(!editingPkgId) return;
+  await deletePackage(editingPkgId, pkgEditVenueId);
+  packageOverlay.classList.remove('show');
+});
+document.getElementById('savePkg').addEventListener('click', async ()=>{
+  const name = document.getElementById('p_name').value.trim();
+  if(!name){ alert('Please enter a package name.'); return; }
+  const patch = {
+    package_name: name,
+    location_type: document.getElementById('p_locationType').value.trim() || null,
+    tier: document.getElementById('p_tier').value ? parseFloat(document.getElementById('p_tier').value) : null,
+    base_guests: document.getElementById('p_baseGuests').value ? parseFloat(document.getElementById('p_baseGuests').value) : null,
+    hire: parseFloat(document.getElementById('p_hire').value)||0,
+    catering: parseFloat(document.getElementById('p_catering').value)||0,
+    catering_per_person: document.getElementById('p_cateringPP').value ? parseFloat(document.getElementById('p_cateringPP').value) : null,
+    extras: parseFloat(document.getElementById('p_extras').value)||0,
+    notes: document.getElementById('p_notes').value.trim() || '',
+    is_default: document.getElementById('p_isDefault').checked,
+    hire_items: pkgItemState.hire.filter(it=>it.label.trim()),
+    catering_items: pkgItemState.cat.filter(it=>it.label.trim()),
+    extras_items: pkgItemState.ext.filter(it=>it.label.trim())
+  };
+  const venueId = pkgEditVenueId;
+  if(editingPkgId){
+    await sb.from('venue_packages').update(patch).eq('id', editingPkgId);
+  } else {
+    await sb.from('venue_packages').insert({...patch, venue_id: venueId, wedding_id: weddingId});
+  }
+  invalidatePackagesCache(venueId);
+  packageOverlay.classList.remove('show');
+  await refreshPkgManageSection(venueId);
+  if(state.activeId===venueId) renderDetailPane();
+});
+
 function openEditModal(v){
   state.editingId = v.id;
   document.getElementById('modalTitle').textContent = 'Edit venue';
@@ -1637,6 +1929,14 @@ function openEditModal(v){
   document.getElementById('f_catLow').value=v.catLow||0; document.getElementById('f_catHigh').value=v.catHigh||0;
   document.getElementById('f_extLow').value=v.extLow||0; document.getElementById('f_extHigh').value=v.extHigh||0;
   document.getElementById('f_pros').value=v.pros||''; document.getElementById('f_cons').value=v.cons||''; document.getElementById('f_notes').value=v.notes||'';
+  itemState.hire = cloneItems(v.hireItems);
+  itemState.cat = cloneItems(v.cateringItems);
+  itemState.ext = cloneItems(v.extrasItems);
+  renderAllItemEditors('modalOverlay');
+  document.getElementById('pkgSectionDivider').style.display='block';
+  document.getElementById('pkgManageSection').style.display='block';
+  pkgEditVenueId = v.id;
+  refreshPkgManageSection(v.id);
   overlay.classList.add('show');
 }
 document.getElementById('saveAdd').addEventListener('click', async ()=>{
@@ -1660,7 +1960,10 @@ document.getElementById('saveAdd').addEventListener('click', async ()=>{
     pros: document.getElementById('f_pros').value.trim() || (quickMode?'To be researched.':'—'),
     cons: document.getElementById('f_cons').value.trim() || (quickMode?'To be researched.':'—'),
     notes: document.getElementById('f_notes').value.trim() || '',
-    src: 'estimated'
+    src: 'estimated',
+    hire_items: quickMode?[]:itemState.hire.filter(it=>it.label.trim()),
+    catering_items: quickMode?[]:itemState.cat.filter(it=>it.label.trim()),
+    extras_items: quickMode?[]:itemState.ext.filter(it=>it.label.trim())
   };
   if(state.editingId){
     await sb.from('venues').update(patch).eq('id', state.editingId);
@@ -1670,6 +1973,7 @@ document.getElementById('saveAdd').addEventListener('click', async ()=>{
   overlay.classList.remove('show');
   await loadVenues();
   renderVenueList();
+  if(state.activeId) renderDetailPane();
 });
 
 /* ================= GUESTS TAB ================= */
