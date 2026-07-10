@@ -160,8 +160,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .row-menu-dropdown, .card-menu-dropdown{position:absolute;top:100%;left:0;margin-top:4px;background:var(--paper-raised);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(33,31,26,.15);min-width:150px;z-index:20;display:none;overflow:hidden;}
 .row-menu-dropdown{left:auto;right:0;}
 .row-menu-dropdown.show, .card-menu-dropdown.show{display:block;}
-.row-menu-dropdown button, .card-menu-dropdown button{width:100%;text-align:left;padding:9px 12px;font-size:12.5px;background:none;border:none;color:var(--flag);cursor:pointer;}
-.row-menu-dropdown button:hover, .card-menu-dropdown button:hover{background:var(--flag-soft);}
+.row-menu-dropdown button, .card-menu-dropdown button{width:100%;text-align:left;padding:9px 12px;font-size:12.5px;background:none;border:none;color:var(--ink);cursor:pointer;}
+.row-menu-dropdown button:hover, .card-menu-dropdown button:hover{background:var(--paper);}
+.row-menu-dropdown button.danger, .card-menu-dropdown button.danger{color:var(--flag);}
+.row-menu-dropdown button.danger:hover, .card-menu-dropdown button.danger:hover{background:var(--flag-soft);}
 .card-loc{font-size:12px;color:var(--ink-soft);margin:3px 0 8px;}
 .card-name{font-family:'Fraunces',serif;font-size:16px;line-height:1.2;padding-right:24px;}
 .card-cost{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:17px;margin-top:auto;padding-top:8px;}
@@ -1382,12 +1384,13 @@ function visibleRows(){
   rows.sort((a,b)=>compareRows(a,b,state.sortKey)*dir);
   return rows;
 }
-function rowMenuHTML(id, kind){
+function rowMenuHTML(id, kind, flagged){
   const open = state.openMenuId===id;
   return `<div class="${kind}-menu" data-menuwrap="${id}">
     <button type="button" class="${kind}-menu-btn" data-menubtn="${id}">⋯</button>
     <div class="${kind}-menu-dropdown ${open?'show':''}">
-      <button type="button" data-delvenue="${id}">Delete venue</button>
+      <button type="button" data-toggleflag="${id}">${flagged?'✓ Remove flag':'⚑ Flag as unlikely'}</button>
+      <button type="button" class="danger" data-delvenue="${id}">Delete venue</button>
     </div>
   </div>`;
 }
@@ -1398,7 +1401,7 @@ function cardHTML(r){
   const loc = v.country==='uk' ? r.location : `${r.location} · ${r.capTravel||'—'}`;
   return `<div class="card ${isSel?'active-selection':''}" data-id="${v.id}">
     <div class="card-cmp ${isCmp?'on':''}" data-cmp="${v.id}" title="Add to compare"></div>
-    ${rowMenuHTML(v.id, 'card')}
+    ${rowMenuHTML(v.id, 'card', v.flagged)}
     ${v.imageUrl ? `<img class="card-hero" src="${v.imageUrl}" alt="" onerror="this.remove()">` : ''}
     <div class="card-name">${v.name}</div>
     <div class="card-loc">${loc}</div>
@@ -1433,7 +1436,7 @@ function rowHTML(rows){
       <td class="numcell">${fmt(r.perHead)}</td>
       <td><span class="badge ${r.status}" style="margin:0;">${r.statusLabel}</span></td>
       <td class="numcell">${r.claude!=null?r.claude.toFixed(1):'–'}</td>
-      <td onclick="event.stopPropagation()">${rowMenuHTML(r.id, 'row')}</td>
+      <td onclick="event.stopPropagation()">${rowMenuHTML(r.id, 'row', r.flagged)}</td>
     </tr>`;
   }).join('');
   const colCount = (showUkCols ? 9 : 8) + 1;
@@ -1501,6 +1504,10 @@ function renderVenueList(){
   document.querySelectorAll('[data-delvenue]').forEach(btn=>btn.addEventListener('click', e=>{
     e.stopPropagation();
     deleteVenue(btn.dataset.delvenue);
+  }));
+  document.querySelectorAll('[data-toggleflag]').forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    toggleFlag(btn.dataset.toggleflag);
   }));
   const sortSelectEl = document.getElementById('sortSelect');
   if([...sortSelectEl.options].some(o=>o.value===state.sortKey)) sortSelectEl.value = state.sortKey;
@@ -1586,6 +1593,22 @@ async function deleteVenue(id){
   if(state.main==='venues'){ if(state.view==='compare') renderCompare(); else renderVenueList(); }
   else if(state.main==='dashboard') renderDashboard();
 }
+async function toggleFlag(id){
+  const v = venues.find(x=>x.id===id);
+  if(!v) return;
+  state.openMenuId = null;
+  if(v.flagged){
+    await sb.from('venues').update({flagged:false, flag_reason:null}).eq('id', id);
+  } else {
+    const reason = prompt('Why is this venue unlikely to be chosen? (optional — leave blank for a generic flag)', '');
+    if(reason===null) return;
+    await sb.from('venues').update({flagged:true, flag_reason: reason.trim() || 'Flagged'}).eq('id', id);
+  }
+  await loadVenues();
+  if(state.main==='venues'){ if(state.view==='compare') renderCompare(); else renderVenueList(); }
+  else if(state.main==='dashboard') renderDashboard();
+  if(state.activeId===id) renderDetailPane();
+}
 document.addEventListener('click', (e)=>{
   if(state.openMenuId && !e.target.closest('.row-menu, .card-menu')){
     state.openMenuId = null;
@@ -1656,6 +1679,7 @@ function renderDetailPane(){
         <div class="detail-actions">
           <button class="btn ${isCmp?'':'ghost'} small" id="cmpBtn">${isCmp?'✓ In compare':'+ Add to compare'}</button>
           <button class="btn ghost small" id="editBtn">Edit / add quote</button>
+          <button class="btn ghost small" id="flagBtn">${v.flagged?'✓ Remove flag':'⚑ Flag as unlikely'}</button>
           <button class="btn ghost small" id="exportVenueBtn">⬇ Excel</button>
           <button class="btn danger small" id="delBtn">Delete</button>
         </div>
@@ -1726,6 +1750,7 @@ function renderDetailPane(){
   document.getElementById('cmpBtn').addEventListener('click', ()=>{toggleCompare(v.id); renderDetailPane(); renderTray();});
   document.getElementById('editBtn').addEventListener('click', ()=>openEditModal(v));
   document.getElementById('delBtn').addEventListener('click', ()=>deleteVenue(v.id));
+  document.getElementById('flagBtn').addEventListener('click', ()=>toggleFlag(v.id));
   pane.querySelectorAll('[data-seg]').forEach(seg=>seg.addEventListener('click', ()=>{
     const row = document.getElementById(seg.dataset.seg);
     if(row){ row.classList.add('pulse'); setTimeout(()=>row.classList.remove('pulse'), 900); row.scrollIntoView({behavior:'smooth',block:'center'}); }
