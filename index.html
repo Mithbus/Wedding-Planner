@@ -89,10 +89,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .searchbox::before{content:'⌕';position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:14px;}
 .result-count{font-size:12px;color:var(--ink-soft);margin:6px 0 0;}
 
-.keybox{display:flex;flex-wrap:wrap;gap:14px 22px;background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:18px 0;font-size:12px;color:var(--ink-soft);align-items:center;}
-.keybox .kitem{display:flex;align-items:center;gap:7px;}
-.keybox .dot{width:11px;height:11px;border-radius:50%;}
+.keybox{display:flex;flex-wrap:wrap;gap:10px;background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:9px 14px;margin:18px 0;font-size:12px;color:var(--ink-soft);align-items:center;position:relative;}
+.keybox .kitem{display:flex;align-items:center;gap:6px;}
+.keybox .dot{width:10px;height:10px;border-radius:50%;}
 .keybox .swrect{width:14px;height:14px;border-radius:4px;}
+.key-info{position:relative;margin-left:auto;}
+.key-info-btn{width:22px;height:22px;border-radius:50%;background:var(--paper);border:1px solid var(--line);color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+.key-info-btn:hover{color:var(--ink);border-color:var(--ink-soft);}
+.key-info-popover{position:absolute;top:calc(100% + 8px);right:0;width:300px;max-width:80vw;background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 8px 22px rgba(33,31,26,.15);z-index:30;opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity .15s ease, transform .15s ease;}
+.key-info:hover .key-info-popover, .key-info-btn:focus + .key-info-popover{opacity:1;pointer-events:auto;transform:translateY(0);}
+.key-info-popover .kitem{display:flex;align-items:flex-start;gap:8px;font-size:11.5px;margin-bottom:8px;}
+.key-info-popover .kitem:last-child{margin-bottom:0;}
 
 /* ---- filter panel ---- */
 .filter-panel{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:16px;}
@@ -145,6 +152,16 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .card-cmp.on{background:var(--ink);border-color:var(--ink);}
 .card-cmp.on::after{content:'✓';color:var(--paper-raised);font-size:13px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
 .card-hero{width:100%;height:110px;object-fit:cover;border-radius:10px;margin-bottom:10px;display:block;background:var(--paper);}
+.row-menu, .card-menu{position:relative;}
+.card-menu{position:absolute;top:8px;left:8px;z-index:2;}
+.row-menu-btn, .card-menu-btn{background:none;border:none;font-size:16px;font-weight:700;color:var(--ink-soft);width:26px;height:26px;border-radius:6px;cursor:pointer;line-height:1;padding:0;}
+.card-menu-btn{background:var(--paper-raised);border:1px solid var(--line);}
+.row-menu-btn:hover, .card-menu-btn:hover{background:var(--paper);color:var(--ink);}
+.row-menu-dropdown, .card-menu-dropdown{position:absolute;top:100%;left:0;margin-top:4px;background:var(--paper-raised);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(33,31,26,.15);min-width:150px;z-index:20;display:none;overflow:hidden;}
+.row-menu-dropdown{left:auto;right:0;}
+.row-menu-dropdown.show, .card-menu-dropdown.show{display:block;}
+.row-menu-dropdown button, .card-menu-dropdown button{width:100%;text-align:left;padding:9px 12px;font-size:12.5px;background:none;border:none;color:var(--flag);cursor:pointer;}
+.row-menu-dropdown button:hover, .card-menu-dropdown button:hover{background:var(--flag-soft);}
 .card-loc{font-size:12px;color:var(--ink-soft);margin:3px 0 8px;}
 .card-name{font-family:'Fraunces',serif;font-size:16px;line-height:1.2;padding-right:24px;}
 .card-cost{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:17px;margin-top:auto;padding-top:8px;}
@@ -329,7 +346,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .day-event-item .de-notes{font-size:12px;color:var(--ink-soft);margin-top:2px;}
 
 .empty{text-align:center;padding:50px 20px;color:var(--ink-soft);font-size:14px;}
-footer{text-align:center;margin-top:50px;padding-top:22px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-soft);}
+.info-corner{position:fixed;bottom:16px;right:16px;z-index:70;}
+.info-corner-btn{width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--paper-raised);border:none;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(33,31,26,.25);padding:0;}
+.info-corner-popover{position:absolute;bottom:38px;right:0;width:280px;max-width:70vw;background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:11.5px;line-height:1.5;color:var(--ink-soft);box-shadow:0 8px 22px rgba(33,31,26,.18);opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity .15s ease, transform .15s ease;}
+.info-corner:hover .info-corner-popover, .info-corner-btn:focus + .info-corner-popover{opacity:1;pointer-events:auto;transform:translateY(0);}
 
 @media (max-width:860px){
   .app-shell{flex-direction:column;}
@@ -499,12 +519,16 @@ footer{text-align:center;margin-top:50px;padding-top:22px;border-top:1px solid v
   <div id="tab-moodboard" style="display:none;"></div>
   <div id="tab-settings" style="display:none;"></div>
 
-  <footer>Costs researched July 2026. "Sourced" = from real quotes/notes. "Estimated" = modelled from comparable venues — confirm directly before booking. Flights and Sri Lanka guest accommodation are never included.</footer>
 </div>
 </main>
 </div>
 
 <div class="tray" id="tray"><div class="tray-inner" id="trayInner"></div></div>
+
+<div class="info-corner">
+  <button class="info-corner-btn" tabindex="0" aria-label="About these costs">ⓘ</button>
+  <div class="info-corner-popover">Costs researched July 2026. "Sourced" = from real quotes/notes. "Estimated" = modelled from comparable venues — confirm directly before booking. Flights and Sri Lanka guest accommodation are never included.</div>
+</div>
 
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal wide">
@@ -844,7 +868,7 @@ let venues=[], guests=[], budgetItems=[], checklist=[], calendarEvents=[], moodb
 let venuePackagesCache = {};
 let state = {
   main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true,
-  sortKey:'cost', sortDir:'asc', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false,
+  sortKey:'cost', sortDir:'asc', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false, openMenuId:null,
   venueSearch:'', venueColFilters:{country:'',location:'',status:'',hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
   guestSearch:'', guestFilters:{side:'',attend:''},
   budgetSearch:'', budgetFilters:{country:''},
@@ -1232,14 +1256,23 @@ function renderDashboard(){
 /* ================= VENUES: KEY / LEGEND ================= */
 function renderKey(){
   document.getElementById('keybox').innerHTML = `
-    <span style="font-weight:700;font-size:12px;">Key:</span>
     <span class="kitem"><span class="dot" style="background:var(--uk)"></span>United Kingdom</span>
     <span class="kitem"><span class="dot" style="background:var(--sl)"></span>Sri Lanka</span>
-    <span class="kitem"><span class="badge sourced" style="margin:0;">Sourced</span>from a real quote/notes</span>
-    <span class="kitem"><span class="badge estimated" style="margin:0;">Estimated</span>modelled from comparable venues</span>
-    <span class="kitem"><span class="badge pending" style="margin:0;">Pending quote</span>you're waiting to hear back</span>
-    <span class="kitem"><span class="badge needsresearch" style="margin:0;">Needs research</span>added by name only</span>
-    <span class="kitem"><span class="swrect" style="background:var(--flag-soft);border:1px solid #E0BCB2;"></span><b style="color:var(--flag)">Red row/card = flagged</b> — noted as too far, too small, or too expensive; hidden by the toggle above</span>
+    <span class="badge sourced" style="margin:0;">Sourced</span>
+    <span class="badge estimated" style="margin:0;">Estimated</span>
+    <span class="badge pending" style="margin:0;">Pending quote</span>
+    <span class="badge needsresearch" style="margin:0;">Needs research</span>
+    <span class="kitem"><span class="swrect" style="background:var(--flag-soft);border:1px solid #E0BCB2;"></span>Flagged</span>
+    <div class="key-info">
+      <button class="key-info-btn" tabindex="0" aria-label="What do these mean?">ⓘ</button>
+      <div class="key-info-popover">
+        <div class="kitem"><span class="badge sourced" style="margin:0;flex-shrink:0;">Sourced</span>From a real quote or notes.</div>
+        <div class="kitem"><span class="badge estimated" style="margin:0;flex-shrink:0;">Estimated</span>Modelled from comparable venues.</div>
+        <div class="kitem"><span class="badge pending" style="margin:0;flex-shrink:0;">Pending</span>You're waiting to hear back.</div>
+        <div class="kitem"><span class="badge needsresearch" style="margin:0;flex-shrink:0;">Needs research</span>Added by name only.</div>
+        <div class="kitem"><span class="swrect" style="background:var(--flag-soft);border:1px solid #E0BCB2;flex-shrink:0;margin-top:2px;"></span><b style="color:var(--flag)">Flagged</b> — noted as too far, too small, or too expensive; hidden by the toggle above.</div>
+      </div>
+    </div>
   `;
 }
 
@@ -1351,6 +1384,15 @@ function visibleRows(){
   rows.sort((a,b)=>compareRows(a,b,state.sortKey)*dir);
   return rows;
 }
+function rowMenuHTML(id, kind){
+  const open = state.openMenuId===id;
+  return `<div class="${kind}-menu" data-menuwrap="${id}">
+    <button type="button" class="${kind}-menu-btn" data-menubtn="${id}">⋯</button>
+    <div class="${kind}-menu-dropdown ${open?'show':''}">
+      <button type="button" data-delvenue="${id}">Delete venue</button>
+    </div>
+  </div>`;
+}
 function cardHTML(r){
   const v = r.v;
   const isCmp = compareIds.includes(v.id);
@@ -1358,6 +1400,7 @@ function cardHTML(r){
   const loc = v.country==='uk' ? r.location : `${r.location} · ${r.capTravel||'—'}`;
   return `<div class="card ${v.flagged?'flagged':''} ${isSel?'active-selection':''}" data-id="${v.id}">
     <div class="card-cmp ${isCmp?'on':''}" data-cmp="${v.id}" title="Add to compare"></div>
+    ${rowMenuHTML(v.id, 'card')}
     ${v.imageUrl ? `<img class="card-hero" src="${v.imageUrl}" alt="" onerror="this.remove()">` : ''}
     <div class="card-name">${v.name}</div>
     <div class="card-loc">${loc}</div>
@@ -1391,11 +1434,12 @@ function rowHTML(rows){
       <td class="numcell">${fmt(r.perHead)}</td>
       <td><span class="badge ${r.status}" style="margin:0;">${r.statusLabel}</span></td>
       <td class="numcell">${r.claude!=null?r.claude.toFixed(1):'–'}</td>
+      <td onclick="event.stopPropagation()">${rowMenuHTML(r.id, 'row')}</td>
     </tr>`;
   }).join('');
-  const colCount = showUkCols ? 9 : 8;
+  const colCount = (showUkCols ? 9 : 8) + 1;
   return `<div class="tablewrap"><table class="vtable">
-    <tr>${sortTh('Venue','name')}${sortTh('Country','country')}${sortTh('Location','location')}${extraHeaders}${sortTh('Total','cost')}${sortTh('Per head','perHead')}${sortTh('Status','status')}${sortTh('Ours','claude')}</tr>
+    <tr>${sortTh('Venue','name')}${sortTh('Country','country')}${sortTh('Location','location')}${extraHeaders}${sortTh('Total','cost')}${sortTh('Per head','perHead')}${sortTh('Status','status')}${sortTh('Ours','claude')}<th></th></tr>
     ${dataRows || `<tr><td colspan="${colCount}" style="text-align:center;padding:30px;color:var(--ink-soft);">No venues match these filters.</td></tr>`}
   </table></div>`;
 }
@@ -1438,7 +1482,7 @@ function renderVenueList(){
     document.getElementById('tableViewWrap').style.display='none';
     document.getElementById('tableScrollTop').style.display='none';
     document.getElementById('grid').innerHTML = rows.map(cardHTML).join('') || '<div class="empty">No venues match these filters.</div>';
-    document.querySelectorAll('.card').forEach(c=>c.addEventListener('click', e=>{ if(e.target.closest('.card-cmp')) return; selectVenue(c.dataset.id); }));
+    document.querySelectorAll('.card').forEach(c=>c.addEventListener('click', e=>{ if(e.target.closest('.card-cmp') || e.target.closest('.card-menu')) return; selectVenue(c.dataset.id); }));
     document.querySelectorAll('.card-cmp').forEach(c=>c.addEventListener('click', e=>{ e.stopPropagation(); toggleCompare(c.dataset.cmp); }));
   } else {
     document.getElementById('grid').style.display='none';
@@ -1449,6 +1493,16 @@ function renderVenueList(){
     document.querySelectorAll('#tableViewWrap th.sortable').forEach(th=>th.addEventListener('click', ()=>setSort(th.dataset.sortkey)));
     syncTopScrollbar();
   }
+  document.querySelectorAll('[data-menubtn]').forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    const id = btn.dataset.menubtn;
+    state.openMenuId = state.openMenuId===id ? null : id;
+    renderVenueList();
+  }));
+  document.querySelectorAll('[data-delvenue]').forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    deleteVenue(btn.dataset.delvenue);
+  }));
   const sortSelectEl = document.getElementById('sortSelect');
   if([...sortSelectEl.options].some(o=>o.value===state.sortKey)) sortSelectEl.value = state.sortKey;
   renderDetailPane();
@@ -1524,8 +1578,24 @@ function renderTray(){
 }
 
 /* ================= VENUE SELECTION (slide-out drawer) ================= */
+async function deleteVenue(id){
+  if(!confirm('Delete this venue? This can\'t be undone.')) return;
+  await sb.from('venues').delete().eq('id', id);
+  state.openMenuId = null;
+  if(state.activeId===id){ state.activeId=null; closeDrawer(); }
+  await loadVenues();
+  if(state.main==='venues'){ if(state.view==='compare') renderCompare(); else renderVenueList(); }
+  else if(state.main==='dashboard') renderDashboard();
+}
+document.addEventListener('click', (e)=>{
+  if(state.openMenuId && !e.target.closest('.row-menu, .card-menu')){
+    state.openMenuId = null;
+    if(state.main==='venues' && state.view!=='compare') renderVenueList();
+  }
+});
 function selectVenue(id){
   state.activeId = id;
+  state.openMenuId = null;
   renderDetailPane();
   openDrawer();
 }
@@ -1588,7 +1658,7 @@ function renderDetailPane(){
           <button class="btn ${isCmp?'':'ghost'} small" id="cmpBtn">${isCmp?'✓ In compare':'+ Add to compare'}</button>
           <button class="btn ghost small" id="editBtn">Edit / add quote</button>
           <button class="btn ghost small" id="exportVenueBtn">⬇ Excel</button>
-          ${v.custom ? '<button class="btn danger small" id="delBtn">Delete</button>' : ''}
+          <button class="btn danger small" id="delBtn">Delete</button>
         </div>
       </div>
       ${v.flagged ? `<div class="flag-banner">⚑ ${v.flagReason||'Flagged'}</div>` : ''}
@@ -1656,9 +1726,7 @@ function renderDetailPane(){
   document.getElementById('backBtn').addEventListener('click', deselectVenue);
   document.getElementById('cmpBtn').addEventListener('click', ()=>{toggleCompare(v.id); renderDetailPane(); renderTray();});
   document.getElementById('editBtn').addEventListener('click', ()=>openEditModal(v));
-  if(v.custom) document.getElementById('delBtn').addEventListener('click', async ()=>{
-    if(confirm('Delete this venue?')){ await sb.from('venues').delete().eq('id', v.id); await loadVenues(); deselectVenue(); }
-  });
+  document.getElementById('delBtn').addEventListener('click', ()=>deleteVenue(v.id));
   pane.querySelectorAll('[data-seg]').forEach(seg=>seg.addEventListener('click', ()=>{
     const row = document.getElementById(seg.dataset.seg);
     if(row){ row.classList.add('pulse'); setTimeout(()=>row.classList.remove('pulse'), 900); row.scrollIntoView({behavior:'smooth',block:'center'}); }
