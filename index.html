@@ -182,10 +182,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .tablewrap{overflow-x:auto;margin-top:6px;border:1px solid var(--line);border-radius:12px;}
 .vtable{border-collapse:collapse;width:100%;min-width:900px;background:var(--paper-raised);}
 .vtable th{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--paper);white-space:nowrap;}
-.vtable th.sortable{cursor:pointer;user-select:none;}
-.vtable th.sortable:hover{color:var(--ink);}
-.vtable th.active-sort{color:var(--ink);}
-.vtable th .sort-arrow{font-size:9px;margin-left:3px;}
+.vtable th.sortable,.plain-table th.sortable{cursor:pointer;user-select:none;}
+.vtable th.sortable:hover,.plain-table th.sortable:hover{color:var(--ink);}
+.vtable th.active-sort,.plain-table th.active-sort{color:var(--ink);}
+.vtable th .sort-arrow,.plain-table th .sort-arrow{font-size:9px;margin-left:3px;}
 .vtable td{padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:middle;}
 .vtable tr.datarow{cursor:pointer;}
 .vtable tr.datarow:hover td{background:#EFEAD9;}
@@ -890,7 +890,7 @@ let state = {
   main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true,
   sortKey:'cost', sortDir:'asc', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false, openMenuId:null,
   venueSearch:'', venueColFilters:{country:'',location:'',status:'',hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
-  guestSearch:'', guestFilters:{side:'',attend:''},
+  guestSearch:'', guestFilters:{side:'',attend:''}, guestSortKey:'', guestSortDir:'asc',
   budgetSearch:'', budgetFilters:{country:''},
   checklistSearch:'', checklistFilters:{group:'',done:''},
   calMonth: new Date().getMonth(), calYear: new Date().getFullYear(), calSelectedDate:null,
@@ -2129,20 +2129,43 @@ document.getElementById('saveAdd').addEventListener('click', async ()=>{
 function sideOptionsHTML(current){
   return `<option value="partner1" ${current==='partner1'?'selected':''}>${partnerName(1)}'s</option>
     <option value="partner2" ${current==='partner2'?'selected':''}>${partnerName(2)}'s</option>
-    <option value="both" ${current==='both'?'selected':''}>Both / mutual</option>`;
+    <option value="both" ${current==='both'?'selected':''}>Both</option>`;
 }
 function attendOptionsHTML(current){
   return `<option value="yes" ${current==='yes'?'selected':''}>Yes</option>
     <option value="no" ${current==='no'?'selected':''}>No</option>
     <option value="maybe" ${current==='maybe'?'selected':''}>Maybe</option>`;
 }
+const GUEST_SORT_GETTERS = {
+  name: g=>g.name||'',
+  side: g=>g.side==='both'?'Both':(g.side==='partner1'?partnerName(1):partnerName(2)),
+  contact: g=>g.contact||'',
+  attend: g=>({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend]||'',
+  notes: g=>g.notes||''
+};
+function guestSortTh(label, key){
+  const active = state.guestSortKey===key;
+  const arrow = active ? `<span class="sort-arrow">${state.guestSortDir==='asc'?'▲':'▼'}</span>` : '';
+  return `<th class="sortable ${active?'active-sort':''}" data-guestsortkey="${key}">${label}${arrow}</th>`;
+}
+function setGuestSort(key){
+  if(state.guestSortKey===key){ state.guestSortDir = state.guestSortDir==='asc'?'desc':'asc'; }
+  else { state.guestSortKey=key; state.guestSortDir='asc'; }
+  renderGuests();
+}
 function visibleGuests(){
-  return guests.filter(g=>{
+  let list = guests.filter(g=>{
     if(state.guestSearch){ const q=state.guestSearch.toLowerCase(); if(!g.name.toLowerCase().includes(q) && !(g.contact||'').toLowerCase().includes(q)) return false; }
     if(state.guestFilters.side && g.side!==state.guestFilters.side) return false;
     if(state.guestFilters.attend && g.attend!==state.guestFilters.attend) return false;
     return true;
   });
+  if(state.guestSortKey){
+    const getter = GUEST_SORT_GETTERS[state.guestSortKey];
+    const dir = state.guestSortDir==='desc' ? -1 : 1;
+    list = [...list].sort((a,b)=>getter(a).localeCompare(getter(b))*dir);
+  }
+  return list;
 }
 async function updateGuestField(id, field, value){
   await sb.from('guests').update({[field]: value}).eq('id', id);
@@ -2177,8 +2200,8 @@ function renderGuests(){
       <h2 style="font-size:22px;">Guest list</h2>
       <div class="searchbox"><input id="guestSearch" placeholder="Search name or contact…" value="${state.guestSearch}"></div>
       <div style="display:flex;gap:8px;">
-        <select id="gf_side" style="width:auto;"><option value="">All sides</option>${sideOptionsHTML(state.guestFilters.side)}</select>
-        <select id="gf_attend" style="width:auto;"><option value="">All attendance</option>${attendOptionsHTML(state.guestFilters.attend)}</select>
+        <select class="btn ghost small" id="gf_side" style="border-color:var(--line);width:auto;"><option value="">All sides</option>${sideOptionsHTML(state.guestFilters.side)}</select>
+        <select class="btn ghost small" id="gf_attend" style="border-color:var(--line);width:auto;"><option value="">All attendance</option>${attendOptionsHTML(state.guestFilters.attend)}</select>
         <button class="btn" id="addGuestBtn" style="width:auto;">+ Add guest</button>
         <button class="btn ghost" id="importGuestsBtn" style="width:auto;border-color:var(--line);">⬆ Import Excel</button>
         <input type="file" id="importGuestsFile" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -2199,7 +2222,7 @@ function renderGuests(){
       <button type="button" id="clearSelection">Clear selection</button>
     </div>` : ''}
     <div class="tablewrap"><table class="plain-table">
-      <tr><th class="checkcell"><input type="checkbox" id="guestSelectAll" ${allVisibleSelected?'checked':''}></th><th>Name</th><th>Whose guest</th><th>Contact</th><th>Likely to attend</th><th>Notes</th><th></th></tr>
+      <tr><th class="checkcell"><input type="checkbox" id="guestSelectAll" ${allVisibleSelected?'checked':''}></th>${guestSortTh('Name','name')}${guestSortTh('Whose guest','side')}${guestSortTh('Contact','contact')}${guestSortTh('Likely to attend','attend')}${guestSortTh('Notes','notes')}<th></th></tr>
       ${rows || '<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
     </table></div>`;
   document.getElementById('addGuestBtn').addEventListener('click', ()=>{ document.getElementById('g_side').innerHTML = sideOptionsHTML('partner1'); guestOverlay.classList.add('show'); });
@@ -2261,6 +2284,7 @@ function renderGuests(){
   document.getElementById('guestSearch').addEventListener('input', e=>{ state.guestSearch=e.target.value; renderGuests(); });
   document.getElementById('gf_side').addEventListener('change', e=>{ state.guestFilters.side=e.target.value; renderGuests(); });
   document.getElementById('gf_attend').addEventListener('change', e=>{ state.guestFilters.attend=e.target.value; renderGuests(); });
+  document.querySelectorAll('[data-guestsortkey]').forEach(th=>th.addEventListener('click', ()=>setGuestSort(th.dataset.guestsortkey)));
   document.querySelectorAll('[data-rmguest]').forEach(b=>b.addEventListener('click', async ()=>{
     selectedGuestIds.delete(b.dataset.rmguest);
     await sb.from('guests').delete().eq('id', b.dataset.rmguest); await loadGuests(); renderGuests();
