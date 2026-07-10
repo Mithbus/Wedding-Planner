@@ -147,7 +147,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(33,31,26,.08);}
 .card.active-selection{outline:2px solid var(--ink);}
 .badge.flagtag{background:var(--flag-soft);color:var(--flag);}
-.flag-tag{color:var(--flag);font-size:11px;margin-right:5px;}
+.flag-slot{display:inline-block;width:16px;color:var(--flag);font-size:11px;}
 .card-cmp{position:absolute;top:12px;right:12px;width:20px;height:20px;border:1.5px solid var(--ink-soft);border-radius:5px;background:var(--paper);z-index:2;}
 .card-cmp.on{background:var(--ink);border-color:var(--ink);}
 .card-cmp.on::after{content:'✓';color:var(--paper-raised);font-size:13px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
@@ -260,8 +260,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 
 .modal-overlay{position:fixed;inset:0;background:rgba(33,31,26,.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
 .modal-overlay.show{display:flex;}
-.modal{background:var(--paper-raised);border-radius:16px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;padding:30px 32px;}
+.modal{background:var(--paper-raised);border-radius:16px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;padding:30px 32px;position:relative;}
 .modal.wide{max-width:780px;}
+.modal-close{position:absolute;top:18px;right:18px;background:none;border:none;font-size:18px;color:var(--ink-soft);cursor:pointer;width:auto;padding:4px;line-height:1;}
+.modal-close:hover{color:var(--ink);}
 .modal h2{font-size:22px;margin-bottom:6px;}
 .modal .modal-sub{font-size:13px;color:var(--ink-soft);margin-bottom:18px;}
 .form-row textarea{resize:vertical;min-height:56px;}
@@ -532,6 +534,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal wide">
+    <button type="button" class="modal-close" id="closeAddModal" aria-label="Close">✕</button>
     <h2 id="modalTitle">Add a venue</h2>
     <p class="modal-sub" id="modalSub">Choose how much detail you have right now.</p>
     <div class="addmode-row" id="addModeRow">
@@ -1428,7 +1431,7 @@ function rowHTML(rows){
     const extraCells = showUkCols ? `<td class="numcell">${r.cardiffTime}</td><td class="numcell">${r.hartleburyTime}</td>`
       : (showSlCol ? `<td class="numcell">${r.capTravel}</td>` : `<td class="numcell">${r.capTravel}</td>`);
     return `<tr class="datarow ${state.activeId===r.id?'selectedrow':''}" data-id="${r.id}">
-      <td class="namecell">${r.flagged?`<span class="flag-tag" title="${r.v.flagReason||'Flagged'}">⚑</span>`:''}${r.name}</td>
+      <td class="namecell"><span class="flag-slot" ${r.flagged?`title="${r.v.flagReason||'Flagged'}"`:''}>${r.flagged?'⚑':''}</span>${r.name}</td>
       <td>${r.countryLabel}</td>
       <td>${r.location}</td>
       ${extraCells}
@@ -1937,6 +1940,7 @@ document.getElementById('addBtn').addEventListener('click', ()=>{
   overlay.classList.add('show');
 });
 document.getElementById('cancelAdd').addEventListener('click', ()=>overlay.classList.remove('show'));
+document.getElementById('closeAddModal').addEventListener('click', ()=>overlay.classList.remove('show'));
 document.querySelectorAll('.addmode-btn').forEach(b=>b.addEventListener('click', ()=>setAddMode(b.dataset.mode)));
 function setAddMode(mode){
   state.addMode = mode;
