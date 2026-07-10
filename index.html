@@ -147,7 +147,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(33,31,26,.08);}
 .card.active-selection{outline:2px solid var(--ink);}
 .badge.flagtag{background:var(--flag-soft);color:var(--flag);}
-.flag-slot{display:inline-block;width:16px;color:var(--flag);font-size:11px;}
+.namecell-inner{display:flex;align-items:flex-start;}
+.flag-slot{display:inline-block;flex:0 0 16px;width:16px;color:var(--flag);font-size:11px;padding-top:1px;}
+.namecell-inner .name-text{flex:1;min-width:0;}
 .card-cmp{position:absolute;top:12px;right:12px;width:20px;height:20px;border:1.5px solid var(--ink-soft);border-radius:5px;background:var(--paper);z-index:2;}
 .card-cmp.on{background:var(--ink);border-color:var(--ink);}
 .card-cmp.on::after{content:'✓';color:var(--paper-raised);font-size:13px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
@@ -294,6 +296,19 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .plain-table th{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);background:var(--paper);}
 .plain-table td{padding:9px 14px;border-bottom:1px solid var(--line);font-size:13.5px;}
 .plain-table input,.plain-table select{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:5px 8px;font-size:13px;font-family:'Inter';width:100%;}
+.plain-table td.checkcell{width:36px;padding-left:14px;padding-right:0;}
+.plain-table th.checkcell{width:36px;padding-left:14px;padding-right:0;}
+.plain-table input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);}
+.bulk-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--ink);color:var(--paper-raised);border-radius:10px;padding:10px 14px;margin-top:10px;}
+.bulk-bar .bulk-count{font-size:12.5px;font-weight:600;white-space:nowrap;}
+.bulk-bar select{width:auto;border:1px solid rgba(255,255,255,.3);background:var(--ink);color:var(--paper-raised);border-radius:6px;padding:5px 8px;font-size:12.5px;}
+.bulk-bar button{width:auto;background:none;border:1px solid rgba(255,255,255,.3);color:var(--paper-raised);border-radius:6px;padding:5px 10px;font-size:12.5px;}
+select.side-partner1{background:var(--uk-soft);}
+select.side-partner2{background:var(--sl-soft);}
+select.side-both{background:var(--info-soft);}
+select.attend-yes{background:var(--win-soft);}
+select.attend-no{background:var(--flag-soft);}
+select.attend-maybe{background:var(--paper);}
 .tag{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;}
 .tag.p1{background:var(--uk-soft);color:#354430;}
 .tag.p2{background:var(--sl-soft);color:#6B4E15;}
@@ -625,9 +640,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
     <div class="form-row"><label>Name</label><input id="g_name" placeholder="Full name"></div>
     <div class="form-grid2">
       <div class="form-row"><label>Whose guest?</label><select id="g_side"></select></div>
-      <div class="form-row"><label>Likely to attend</label><select id="g_attend"><option value="both">Both weddings</option><option value="uk">UK only</option><option value="sl">Sri Lanka only</option><option value="unsure">Not sure yet</option></select></div>
+      <div class="form-row"><label>Likely to attend</label><select id="g_attend"><option value="yes">Yes</option><option value="no">No</option><option value="maybe" selected>Maybe</option></select></div>
     </div>
     <div class="form-row"><label>Contact (email or phone)</label><input id="g_contact" placeholder="optional"></div>
+    <div class="form-row"><label>Notes</label><input id="g_notes" placeholder="optional"></div>
     <div class="modal-actions">
       <button class="btn ghost" id="cancelGuest">Cancel</button>
       <button class="btn" id="saveGuest">Add guest</button>
@@ -868,6 +884,7 @@ const DEFAULT_BUDGET_LINES = [
 /* ================= APP STATE ================= */
 let session=null, weddingId=null, mySlot=null, wedding=null, members=[];
 let venues=[], guests=[], budgetItems=[], checklist=[], calendarEvents=[], moodboardItems=[], compareIds=[];
+let selectedGuestIds = new Set();
 let venuePackagesCache = {};
 let state = {
   main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true,
@@ -884,6 +901,7 @@ const MOOD_CATEGORIES = ["Venue","Décor & Styling","Attire & Beauty","Flowers",
 function partnerName(slot){ if(!wedding) return slot===1?'Partner 1':'Partner 2'; return slot===1?(wedding.partner1_name||'Partner 1'):(wedding.partner2_name||'Partner 2'); }
 function homeName(n){ if(!wedding) return n===1?'Home 1':'Home 2'; return n===1?(wedding.home1_name||'Cardiff'):(wedding.home2_name||'Hartlebury'); }
 function fmt(n){ return '£' + Math.round(n||0).toLocaleString('en-GB'); }
+function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
 
 /* ================= AUTH FLOW ================= */
@@ -1208,8 +1226,9 @@ function checkDueNotifications(){
 
 /* ================= DASHBOARD ================= */
 function renderDashboard(){
-  const ukG = guests.filter(g=>g.attend==='uk'||g.attend==='both').length;
-  const slG = guests.filter(g=>g.attend==='sl'||g.attend==='both').length;
+  const yesG = guests.filter(g=>g.attend==='yes').length;
+  const maybeG = guests.filter(g=>g.attend==='maybe').length;
+  const noG = guests.filter(g=>g.attend==='no').length;
   const totalG = guests.length;
   const plannedTotal = budgetItems.reduce((s,b)=>s+(+b.planned||0),0);
   const actualTotal = budgetItems.reduce((s,b)=>s+(+b.actual||0),0);
@@ -1227,11 +1246,8 @@ function renderDashboard(){
   document.getElementById('tab-dashboard').innerHTML = `
     <div class="section-head"><h2 style="font-size:22px;">Overview</h2></div>
     <div class="dcards">
-      <div class="dcard clickable" data-goto="guests"><div class="dlabel">Guest list</div><div class="dval">${totalG}</div><div class="dsub">${ukG} likely UK · ${slG} likely Sri Lanka</div></div>
-      <div class="dcard clickable" data-goto="guests" data-attend="uk"><div class="dlabel">UK capacity check (${wedding.uk_guests})</div><div class="dval" style="color:${ukG>wedding.uk_guests?'var(--flag)':'var(--ink)'}">${ukG}/${wedding.uk_guests}</div>
-        <div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,ukG/wedding.uk_guests*100)}%;background:${ukG>wedding.uk_guests?'var(--flag)':'var(--ink)'}"></div></div></div>
-      <div class="dcard clickable" data-goto="guests" data-attend="sl"><div class="dlabel">Sri Lanka capacity check (${wedding.sl_guests})</div><div class="dval" style="color:${slG>wedding.sl_guests?'var(--flag)':'var(--ink)'}">${slG}/${wedding.sl_guests}</div>
-        <div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,slG/wedding.sl_guests*100)}%;background:${slG>wedding.sl_guests?'var(--flag)':'var(--ink)'}"></div></div></div>
+      <div class="dcard clickable" data-goto="guests"><div class="dlabel">Guest list</div><div class="dval">${totalG}</div><div class="dsub">${yesG} confirmed · ${maybeG} maybe · ${noG} no</div></div>
+      <div class="dcard clickable" data-goto="guests" data-attend="yes"><div class="dlabel">Confirmed attendance</div><div class="dval">${yesG}</div><div class="dsub">${maybeG} still maybe, ${noG} declined — click to review</div></div>
       <div class="dcard clickable" data-goto="budget"><div class="dlabel">Budget planned vs spent</div><div class="dval">${fmt(actualTotal)}</div><div class="dsub">of ${fmt(plannedTotal)} planned · ${fmt(overallBudget)} overall budget</div>
         <div class="progress-track"><div class="progress-fill" style="width:${plannedTotal?Math.min(100,actualTotal/plannedTotal*100):0}%"></div></div></div>
       <div class="dcard clickable" data-goto="checklist"><div class="dlabel">Checklist progress</div><div class="dval">${clPct}%</div><div class="dsub">${doneTasks} of ${checklist.length} tasks done</div>
@@ -1431,7 +1447,7 @@ function rowHTML(rows){
     const extraCells = showUkCols ? `<td class="numcell">${r.cardiffTime}</td><td class="numcell">${r.hartleburyTime}</td>`
       : (showSlCol ? `<td class="numcell">${r.capTravel}</td>` : `<td class="numcell">${r.capTravel}</td>`);
     return `<tr class="datarow ${state.activeId===r.id?'selectedrow':''}" data-id="${r.id}">
-      <td class="namecell"><span class="flag-slot" ${r.flagged?`title="${r.v.flagReason||'Flagged'}"`:''}>${r.flagged?'⚑':''}</span>${r.name}</td>
+      <td class="namecell"><div class="namecell-inner"><span class="flag-slot" ${r.flagged?`title="${r.v.flagReason||'Flagged'}"`:''}>${r.flagged?'⚑':''}</span><span class="name-text">${r.name}</span></div></td>
       <td>${r.countryLabel}</td>
       <td>${r.location}</td>
       ${extraCells}
@@ -2115,6 +2131,11 @@ function sideOptionsHTML(current){
     <option value="partner2" ${current==='partner2'?'selected':''}>${partnerName(2)}'s</option>
     <option value="both" ${current==='both'?'selected':''}>Both / mutual</option>`;
 }
+function attendOptionsHTML(current){
+  return `<option value="yes" ${current==='yes'?'selected':''}>Yes</option>
+    <option value="no" ${current==='no'?'selected':''}>No</option>
+    <option value="maybe" ${current==='maybe'?'selected':''}>Maybe</option>`;
+}
 function visibleGuests(){
   return guests.filter(g=>{
     if(state.guestSearch){ const q=state.guestSearch.toLowerCase(); if(!g.name.toLowerCase().includes(q) && !(g.contact||'').toLowerCase().includes(q)) return false; }
@@ -2123,16 +2144,32 @@ function visibleGuests(){
     return true;
   });
 }
+async function updateGuestField(id, field, value){
+  await sb.from('guests').update({[field]: value}).eq('id', id);
+  await loadGuests(); renderGuests();
+}
+async function bulkUpdateGuests(field, value){
+  if(!selectedGuestIds.size) return;
+  await sb.from('guests').update({[field]: value}).in('id', Array.from(selectedGuestIds));
+  await loadGuests(); renderGuests();
+}
 function renderGuests(){
-  const ukCount = guests.filter(g=>g.attend==='uk'||g.attend==='both').length;
-  const slCount = guests.filter(g=>g.attend==='sl'||g.attend==='both').length;
+  const allIds = new Set(guests.map(g=>g.id));
+  Array.from(selectedGuestIds).forEach(id=>{ if(!allIds.has(id)) selectedGuestIds.delete(id); });
+  const yesCount = guests.filter(g=>g.attend==='yes').length;
+  const maybeCount = guests.filter(g=>g.attend==='maybe').length;
+  const noCount = guests.filter(g=>g.attend==='no').length;
   const p1Count = guests.filter(g=>g.side==='partner1').length, p2Count = guests.filter(g=>g.side==='partner2').length, bCount = guests.filter(g=>g.side==='both').length;
   const shown = visibleGuests();
+  const shownIds = shown.map(g=>g.id);
+  const allVisibleSelected = shownIds.length>0 && shownIds.every(id=>selectedGuestIds.has(id));
   const rows = shown.map(g=>`<tr>
-      <td>${g.name}</td>
-      <td><span class="tag ${g.side==='partner1'?'p1':(g.side==='partner2'?'p2':'both')}">${g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s")}</span></td>
-      <td>${g.contact||'—'}</td>
-      <td>${({both:'Both weddings',uk:'UK only',sl:'Sri Lanka only',unsure:'Not sure yet'})[g.attend]}</td>
+      <td class="checkcell"><input type="checkbox" class="guest-check" data-guestid="${g.id}" ${selectedGuestIds.has(g.id)?'checked':''}></td>
+      <td><input type="text" class="cell-input" data-field="name" data-guestid="${g.id}" value="${escAttr(g.name)}"></td>
+      <td><select class="cell-input side-${g.side}" data-field="side" data-guestid="${g.id}">${sideOptionsHTML(g.side)}</select></td>
+      <td><input type="text" class="cell-input" data-field="contact" data-guestid="${g.id}" value="${escAttr(g.contact||'')}" placeholder="—"></td>
+      <td><select class="cell-input attend-${g.attend}" data-field="attend" data-guestid="${g.id}">${attendOptionsHTML(g.attend)}</select></td>
+      <td><input type="text" class="cell-input" data-field="notes" data-guestid="${g.id}" value="${escAttr(g.notes||'')}" placeholder="Add a note…"></td>
       <td><button class="rmbtn" data-rmguest="${g.id}">Remove</button></td>
     </tr>`).join('');
   document.getElementById('tab-guests').innerHTML = `
@@ -2141,7 +2178,7 @@ function renderGuests(){
       <div class="searchbox"><input id="guestSearch" placeholder="Search name or contact…" value="${state.guestSearch}"></div>
       <div style="display:flex;gap:8px;">
         <select id="gf_side" style="width:auto;"><option value="">All sides</option>${sideOptionsHTML(state.guestFilters.side)}</select>
-        <select id="gf_attend" style="width:auto;"><option value="">All attendance</option><option value="uk" ${state.guestFilters.attend==='uk'?'selected':''}>UK only</option><option value="sl" ${state.guestFilters.attend==='sl'?'selected':''}>Sri Lanka only</option><option value="both" ${state.guestFilters.attend==='both'?'selected':''}>Both</option><option value="unsure" ${state.guestFilters.attend==='unsure'?'selected':''}>Not sure</option></select>
+        <select id="gf_attend" style="width:auto;"><option value="">All attendance</option>${attendOptionsHTML(state.guestFilters.attend)}</select>
         <button class="btn" id="addGuestBtn" style="width:auto;">+ Add guest</button>
         <button class="btn ghost" id="importGuestsBtn" style="width:auto;border-color:var(--line);">⬆ Import Excel</button>
         <input type="file" id="importGuestsFile" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -2151,14 +2188,20 @@ function renderGuests(){
     <div class="dcards">
       <div class="dcard"><div class="dlabel">Total guests</div><div class="dval">${guests.length}</div></div>
       <div class="dcard"><div class="dlabel">${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${p1Count} / ${p2Count} / ${bCount}</div></div>
-      <div class="dcard"><div class="dlabel">Likely UK attendance</div><div class="dval" style="color:${ukCount>wedding.uk_guests?'var(--flag)':'var(--ink)'}">${ukCount}/${wedding.uk_guests}</div></div>
-      <div class="dcard"><div class="dlabel">Likely Sri Lanka attendance</div><div class="dval" style="color:${slCount>wedding.sl_guests?'var(--flag)':'var(--ink)'}">${slCount}/${wedding.sl_guests}</div></div>
+      <div class="dcard"><div class="dlabel">Confirmed (Yes)</div><div class="dval">${yesCount}</div></div>
+      <div class="dcard"><div class="dlabel">Maybe / No</div><div class="dval" style="font-size:20px;">${maybeCount} / ${noCount}</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${guests.length} guests</p>
-    <table class="plain-table">
-      <tr><th>Name</th><th>Whose guest</th><th>Contact</th><th>Likely to attend</th><th></th></tr>
-      ${rows || '<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
-    </table>`;
+    ${selectedGuestIds.size ? `<div class="bulk-bar">
+      <span class="bulk-count">${selectedGuestIds.size} selected</span>
+      <select id="bulkSide"><option value="">Set whose guest…</option>${sideOptionsHTML(null)}</select>
+      <select id="bulkAttend"><option value="">Set likely to attend…</option>${attendOptionsHTML(null)}</select>
+      <button type="button" id="clearSelection">Clear selection</button>
+    </div>` : ''}
+    <div class="tablewrap"><table class="plain-table">
+      <tr><th class="checkcell"><input type="checkbox" id="guestSelectAll" ${allVisibleSelected?'checked':''}></th><th>Name</th><th>Whose guest</th><th>Contact</th><th>Likely to attend</th><th>Notes</th><th></th></tr>
+      ${rows || '<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
+    </table></div>`;
   document.getElementById('addGuestBtn').addEventListener('click', ()=>{ document.getElementById('g_side').innerHTML = sideOptionsHTML('partner1'); guestOverlay.classList.add('show'); });
   document.getElementById('importGuestsBtn').addEventListener('click', ()=>document.getElementById('importGuestsFile').click());
   document.getElementById('importGuestsFile').addEventListener('change', async (e)=>{
@@ -2184,8 +2227,9 @@ function renderGuests(){
       const sideCol = findCol(sample, ['whose guest','side']);
       const attendCol = findCol(sample, ['likely to attend','attend','attending']);
       const contactCol = findCol(sample, ['contact','email','phone']);
+      const notesCol = findCol(sample, ['notes','note']);
       const sideMap = {"mithun's":'partner1',"gayathma's":'partner2','both':'both','both / mutual':'both'};
-      const attendMap = {'both weddings':'both','both':'both','uk only':'uk','uk':'uk','sri lanka only':'sl','sri lanka':'sl','sl':'sl','not sure yet':'unsure','not sure':'unsure','unsure':'unsure'};
+      const attendMap = {'yes':'yes','no':'no','maybe':'maybe','not sure':'maybe','not sure yet':'maybe','both weddings':'yes','both':'yes','uk only':'yes','uk':'yes','sri lanka only':'yes','sri lanka':'yes','sl':'yes','unsure':'maybe'};
       const inserts = rows.map(r=>{
         const name = (r[nameCol]||'').toString().trim();
         if(!name) return null;
@@ -2194,8 +2238,9 @@ function renderGuests(){
         return {
           wedding_id: weddingId, name,
           side: sideMap[rawSide] || 'both',
-          attend: attendMap[rawAttend] || 'unsure',
-          contact: contactCol ? (r[contactCol]||'').toString().trim() : ''
+          attend: attendMap[rawAttend] || 'maybe',
+          contact: contactCol ? (r[contactCol]||'').toString().trim() : '',
+          notes: notesCol ? (r[notesCol]||'').toString().trim() : ''
         };
       }).filter(Boolean);
       if(!inserts.length){ alert('No valid rows with a name were found.'); e.target.value=''; return; }
@@ -2209,24 +2254,50 @@ function renderGuests(){
     e.target.value='';
   });
   document.getElementById('exportGuestsBtn').addEventListener('click', ()=>{
-    const header=['Name','Whose guest','Contact','Likely to attend'];
-    const aoa=[header, ...shown.map(g=>[g.name, g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.contact||'', ({both:'Both weddings',uk:'UK only',sl:'Sri Lanka only',unsure:'Not sure yet'})[g.attend]])];
+    const header=['Name','Whose guest','Contact','Likely to attend','Notes'];
+    const aoa=[header, ...shown.map(g=>[g.name, g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.contact||'', ({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend], g.notes||''])];
     exportRowsToExcel('guest-list.xlsx','Guests',aoa);
   });
   document.getElementById('guestSearch').addEventListener('input', e=>{ state.guestSearch=e.target.value; renderGuests(); });
   document.getElementById('gf_side').addEventListener('change', e=>{ state.guestFilters.side=e.target.value; renderGuests(); });
   document.getElementById('gf_attend').addEventListener('change', e=>{ state.guestFilters.attend=e.target.value; renderGuests(); });
   document.querySelectorAll('[data-rmguest]').forEach(b=>b.addEventListener('click', async ()=>{
+    selectedGuestIds.delete(b.dataset.rmguest);
     await sb.from('guests').delete().eq('id', b.dataset.rmguest); await loadGuests(); renderGuests();
   }));
+  document.querySelectorAll('.cell-input').forEach(el=>{
+    el.addEventListener('change', ()=>{
+      const field = el.dataset.field, id = el.dataset.guestid, val = el.value.trim();
+      if(field==='name' && !val){ alert('Name cannot be empty.'); renderGuests(); return; }
+      updateGuestField(id, field, val);
+    });
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter') el.blur(); });
+  });
+  document.querySelectorAll('.guest-check').forEach(cb=>cb.addEventListener('change', ()=>{
+    const id = cb.dataset.guestid;
+    if(cb.checked) selectedGuestIds.add(id); else selectedGuestIds.delete(id);
+    renderGuests();
+  }));
+  const selectAllEl = document.getElementById('guestSelectAll');
+  if(selectAllEl) selectAllEl.addEventListener('change', ()=>{
+    if(selectAllEl.checked) shownIds.forEach(id=>selectedGuestIds.add(id));
+    else shownIds.forEach(id=>selectedGuestIds.delete(id));
+    renderGuests();
+  });
+  const bulkSideEl = document.getElementById('bulkSide');
+  if(bulkSideEl) bulkSideEl.addEventListener('change', ()=>{ if(bulkSideEl.value) bulkUpdateGuests('side', bulkSideEl.value); });
+  const bulkAttendEl = document.getElementById('bulkAttend');
+  if(bulkAttendEl) bulkAttendEl.addEventListener('change', ()=>{ if(bulkAttendEl.value) bulkUpdateGuests('attend', bulkAttendEl.value); });
+  const clearSelEl = document.getElementById('clearSelection');
+  if(clearSelEl) clearSelEl.addEventListener('click', ()=>{ selectedGuestIds.clear(); renderGuests(); });
 }
 const guestOverlay = document.getElementById('guestOverlay');
 document.getElementById('cancelGuest').addEventListener('click', ()=>guestOverlay.classList.remove('show'));
 document.getElementById('saveGuest').addEventListener('click', async ()=>{
   const name = document.getElementById('g_name').value.trim();
   if(!name){ alert('Please enter a name.'); return; }
-  await sb.from('guests').insert({wedding_id:weddingId, name, side:document.getElementById('g_side').value, attend:document.getElementById('g_attend').value, contact:document.getElementById('g_contact').value.trim()});
-  ['g_name','g_contact'].forEach(id=>document.getElementById(id).value='');
+  await sb.from('guests').insert({wedding_id:weddingId, name, side:document.getElementById('g_side').value, attend:document.getElementById('g_attend').value, contact:document.getElementById('g_contact').value.trim(), notes:document.getElementById('g_notes').value.trim()});
+  ['g_name','g_contact','g_notes'].forEach(id=>document.getElementById(id).value='');
   guestOverlay.classList.remove('show');
   await loadGuests(); renderGuests();
 });
