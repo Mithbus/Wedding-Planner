@@ -2352,7 +2352,7 @@ function renderBudget(){
       <h2 style="font-size:22px;">Budget tracker</h2>
       <div class="searchbox"><input id="budgetSearch" placeholder="Search category…" value="${state.budgetSearch}"></div>
       <div style="display:flex;gap:8px;">
-        <select id="bf_country" style="width:auto;"><option value="">All</option><option value="uk" ${state.budgetFilters.country==='uk'?'selected':''}>UK</option><option value="sl" ${state.budgetFilters.country==='sl'?'selected':''}>Sri Lanka</option><option value="shared" ${state.budgetFilters.country==='shared'?'selected':''}>Shared</option></select>
+        <select class="btn ghost small" id="bf_country" style="border-color:var(--line);width:auto;"><option value="">All</option><option value="uk" ${state.budgetFilters.country==='uk'?'selected':''}>UK</option><option value="sl" ${state.budgetFilters.country==='sl'?'selected':''}>Sri Lanka</option><option value="shared" ${state.budgetFilters.country==='shared'?'selected':''}>Shared</option></select>
         <button class="btn" id="addBudgetBtn" style="width:auto;">+ Add line</button>
         <button class="btn export" id="exportBudgetBtn" style="width:auto;">⬇ Excel</button>
       </div>
@@ -2411,8 +2411,8 @@ function renderChecklist(){
       <h2 style="font-size:22px;">Wedding checklist</h2>
       <div class="searchbox"><input id="taskSearch" placeholder="Search tasks…" value="${state.checklistSearch}"></div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <select id="tf_group" style="width:auto;"><option value="">All timeframes</option>${groups.map(g=>`<option value="${g}" ${gFilter===g?'selected':''}>${g}</option>`).join('')}</select>
-        <select id="tf_done" style="width:auto;"><option value="">All</option><option value="done" ${dFilter==='done'?'selected':''}>Done</option><option value="pending" ${dFilter==='pending'?'selected':''}>Not done</option></select>
+        <select class="btn ghost small" id="tf_group" style="border-color:var(--line);width:auto;"><option value="">All timeframes</option>${groups.map(g=>`<option value="${g}" ${gFilter===g?'selected':''}>${g}</option>`).join('')}</select>
+        <select class="btn ghost small" id="tf_done" style="border-color:var(--line);width:auto;"><option value="">All</option><option value="done" ${dFilter==='done'?'selected':''}>Done</option><option value="pending" ${dFilter==='pending'?'selected':''}>Not done</option></select>
         <button class="btn" id="addTaskBtn" style="width:auto;">+ Add task</button>
         <button class="btn export" id="exportChecklistBtn" style="width:auto;">⬇ Excel</button>
       </div>
