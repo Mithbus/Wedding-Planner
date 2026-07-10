@@ -144,6 +144,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .card-cmp{position:absolute;top:12px;right:12px;width:20px;height:20px;border:1.5px solid var(--ink-soft);border-radius:5px;background:var(--paper);z-index:2;}
 .card-cmp.on{background:var(--ink);border-color:var(--ink);}
 .card-cmp.on::after{content:'✓';color:var(--paper-raised);font-size:13px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.card-hero{width:100%;height:110px;object-fit:cover;border-radius:10px;margin-bottom:10px;display:block;background:var(--paper);}
 .card-loc{font-size:12px;color:var(--ink-soft);margin:3px 0 8px;}
 .card-name{font-family:'Fraunces',serif;font-size:16px;line-height:1.2;padding-right:24px;}
 .card-cost{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:17px;margin-top:auto;padding-top:8px;}
@@ -160,6 +161,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .tablewrap{overflow-x:auto;margin-top:6px;border:1px solid var(--line);border-radius:12px;}
 .vtable{border-collapse:collapse;width:100%;min-width:900px;background:var(--paper-raised);}
 .vtable th{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--paper);white-space:nowrap;}
+.vtable th.sortable{cursor:pointer;user-select:none;}
+.vtable th.sortable:hover{color:var(--ink);}
+.vtable th.active-sort{color:var(--ink);}
+.vtable th .sort-arrow{font-size:9px;margin-left:3px;}
 .vtable td{padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:middle;}
 .vtable tr.rowflagged td{background:var(--flag-soft);}
 .vtable tr.datarow{cursor:pointer;}
@@ -170,6 +175,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .vtable td.numcell{font-family:'IBM Plex Mono',monospace;font-size:12px;}
 
 .detail{background:var(--paper-raised);border:1px solid var(--line);border-radius:16px;padding:24px 26px;}
+.venue-hero{width:100%;height:260px;object-fit:cover;border-radius:12px;margin-bottom:20px;display:block;background:var(--paper);}
 .back-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink-soft);background:none;border:none;margin-bottom:16px;width:auto;}
 .detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
 .detail-title{font-size:24px;max-width:600px;}
@@ -513,6 +519,7 @@ footer{text-align:center;margin-top:50px;padding-top:22px;border-top:1px solid v
       <div class="form-row"><label>Country</label><select id="f_country"><option value="uk">United Kingdom</option><option value="sl">Sri Lanka</option></select></div>
       <div class="form-row"><label>City / region</label><input id="f_city" placeholder="e.g. York"></div>
     </div>
+    <div class="form-row"><label>Photo URL (optional)</label><input id="f_image" placeholder="https://… a link to a photo of the venue"></div>
     <div id="fullFields">
       <div class="form-grid2">
         <div class="form-row"><label id="f_capLabel">Max capacity</label><input id="f_cap" type="number" placeholder="150"></div>
@@ -837,7 +844,7 @@ let venues=[], guests=[], budgetItems=[], checklist=[], calendarEvents=[], moodb
 let venuePackagesCache = {};
 let state = {
   main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true,
-  sort:'cost', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false,
+  sortKey:'cost', sortDir:'asc', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false,
   venueSearch:'', venueColFilters:{country:'',location:'',status:'',hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
   guestSearch:'', guestFilters:{side:'',attend:''},
   budgetSearch:'', budgetFilters:{country:''},
@@ -975,7 +982,7 @@ function mapVenueRow(r){
     src:r.src, claude:r.claude!=null?+r.claude:null, claudeFactors:r.claude_factors||null, ratingP1:r.rating_p1!=null?+r.rating_p1:null, ratingP2:r.rating_p2!=null?+r.rating_p2:null,
     pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, custom:r.custom, activePackageId:r.active_package_id||null,
     website:r.website_url||null, sourceLabel:r.source_label||null, sourceUrl:r.source_url||null, cardiffTime:r.cardiff_time||null, hartleburyTime:r.hartlebury_time||null,
-    hireItems:r.hire_items||[], cateringItems:r.catering_items||[], extrasItems:r.extras_items||[]};
+    hireItems:r.hire_items||[], cateringItems:r.catering_items||[], extrasItems:r.extras_items||[], imageUrl:r.image_url||null};
 }
 async function loadVenues(){
   const { data } = await sb.from('venues').select('*').eq('wedding_id', weddingId).order('created_at');
@@ -1318,17 +1325,30 @@ function matchesColFilters(row){
   if(f.p2Min!=='' && (row.p2==null || row.p2 < +f.p2Min)) return false;
   return true;
 }
+const SORT_GETTERS = {
+  cost:r=>r.total, perHead:r=>r.perHead, name:r=>r.name, country:r=>r.countryLabel, location:r=>r.location,
+  status:r=>r.statusLabel, claude:r=>r.claude, p1:r=>r.p1, p2:r=>r.p2,
+  capTravel:r=>r.capTravel, cardiffTime:r=>r.cardiffTime, hartleburyTime:r=>r.hartleburyTime
+};
+const SORT_DEFAULT_DIR = {cost:'asc', perHead:'asc', claude:'desc', p1:'desc', p2:'desc', name:'asc', country:'asc', location:'asc', status:'asc', capTravel:'asc', cardiffTime:'asc', hartleburyTime:'asc'};
+function compareRows(a, b, key){
+  const getter = SORT_GETTERS[key];
+  if(!getter) return 0;
+  const va = getter(a), vb = getter(b);
+  const aEmpty = va==null || va==='', bEmpty = vb==null || vb==='';
+  if(aEmpty && bEmpty) return 0;
+  if(aEmpty) return 1;
+  if(bEmpty) return -1;
+  if(typeof va==='number' && typeof vb==='number') return va-vb;
+  const na = parseFloat(va), nb = parseFloat(vb);
+  if(!isNaN(na) && !isNaN(nb)) return na-nb;
+  return String(va).localeCompare(String(vb));
+}
 function visibleRows(){
   let rows = baseVenueList().map(computeRow);
   rows = rows.filter(r=>matchesSearch(r, state.venueSearch) && matchesColFilters(r));
-  rows.sort((a,b)=>{
-    if(state.sort==='cost') return a.total-b.total;
-    if(state.sort==='name') return a.name.localeCompare(b.name);
-    if(state.sort==='claude') return (b.claude||0)-(a.claude||0);
-    if(state.sort==='p1') return (b.p1??-1)-(a.p1??-1);
-    if(state.sort==='p2') return (b.p2??-1)-(a.p2??-1);
-    return 0;
-  });
+  const dir = state.sortDir==='desc' ? -1 : 1;
+  rows.sort((a,b)=>compareRows(a,b,state.sortKey)*dir);
   return rows;
 }
 function cardHTML(r){
@@ -1338,6 +1358,7 @@ function cardHTML(r){
   const loc = v.country==='uk' ? r.location : `${r.location} · ${r.capTravel||'—'}`;
   return `<div class="card ${v.flagged?'flagged':''} ${isSel?'active-selection':''}" data-id="${v.id}">
     <div class="card-cmp ${isCmp?'on':''}" data-cmp="${v.id}" title="Add to compare"></div>
+    ${v.imageUrl ? `<img class="card-hero" src="${v.imageUrl}" alt="" onerror="this.remove()">` : ''}
     <div class="card-name">${v.name}</div>
     <div class="card-loc">${loc}</div>
     <span class="badge ${r.status}">${r.statusLabel}</span>
@@ -1349,10 +1370,15 @@ function cardHTML(r){
     <div class="card-cost">${fmt(r.total)}<span class="per">${fmt(r.perHead)}/head · ${guestsFor(v)} guests</span></div>
   </div>`;
 }
+function sortTh(label, key){
+  const active = state.sortKey===key;
+  const arrow = active ? `<span class="sort-arrow">${state.sortDir==='asc'?'▲':'▼'}</span>` : '';
+  return `<th class="sortable ${active?'active-sort':''}" data-sortkey="${key}">${label}${arrow}</th>`;
+}
 function rowHTML(rows){
   const showUkCols = state.vtab==='uk';
   const showSlCol = state.vtab==='sl';
-  const extraHeaders = showUkCols ? `<th>From ${homeName(1)}</th><th>From ${homeName(2)}</th>` : (showSlCol ? `<th>Travel (Colombo)</th>` : `<th>Cap./Travel</th>`);
+  const extraHeaders = showUkCols ? `${sortTh('From '+homeName(1),'cardiffTime')}${sortTh('From '+homeName(2),'hartleburyTime')}` : sortTh(showSlCol ? 'Travel (Colombo)' : 'Cap./Travel', 'capTravel');
   const dataRows = rows.map(r=>{
     const extraCells = showUkCols ? `<td class="numcell">${r.cardiffTime}</td><td class="numcell">${r.hartleburyTime}</td>`
       : (showSlCol ? `<td class="numcell">${r.capTravel}</td>` : `<td class="numcell">${r.capTravel}</td>`);
@@ -1369,7 +1395,7 @@ function rowHTML(rows){
   }).join('');
   const colCount = showUkCols ? 9 : 8;
   return `<div class="tablewrap"><table class="vtable">
-    <tr><th>Venue</th><th>Country</th><th>Location</th>${extraHeaders}<th>Total</th><th>Per head</th><th>Status</th><th>Ours</th></tr>
+    <tr>${sortTh('Venue','name')}${sortTh('Country','country')}${sortTh('Location','location')}${extraHeaders}${sortTh('Total','cost')}${sortTh('Per head','perHead')}${sortTh('Status','status')}${sortTh('Ours','claude')}</tr>
     ${dataRows || `<tr><td colspan="${colCount}" style="text-align:center;padding:30px;color:var(--ink-soft);">No venues match these filters.</td></tr>`}
   </table></div>`;
 }
@@ -1420,8 +1446,11 @@ function renderVenueList(){
     document.getElementById('tableScrollTop').style.display='block';
     document.getElementById('tableViewWrap').innerHTML = rowHTML(rows);
     document.querySelectorAll('.datarow').forEach(tr=>tr.addEventListener('click', ()=>selectVenue(tr.dataset.id)));
+    document.querySelectorAll('#tableViewWrap th.sortable').forEach(th=>th.addEventListener('click', ()=>setSort(th.dataset.sortkey)));
     syncTopScrollbar();
   }
+  const sortSelectEl = document.getElementById('sortSelect');
+  if([...sortSelectEl.options].some(o=>o.value===state.sortKey)) sortSelectEl.value = state.sortKey;
   renderDetailPane();
   renderTray();
 }
@@ -1457,7 +1486,12 @@ document.querySelectorAll('.viewmode').forEach(t=>t.addEventListener('click', ()
   document.querySelectorAll('.viewmode').forEach(x=>x.classList.remove('active')); t.classList.add('active');
   state.viewmode = t.dataset.viewmode; renderVenueList();
 }));
-document.getElementById('sortSelect').addEventListener('change', e=>{ state.sort=e.target.value; renderVenueList(); });
+function setSort(key){
+  if(state.sortKey===key){ state.sortDir = state.sortDir==='asc'?'desc':'asc'; }
+  else { state.sortKey=key; state.sortDir=SORT_DEFAULT_DIR[key]||'asc'; }
+  renderVenueList();
+}
+document.getElementById('sortSelect').addEventListener('change', e=>{ setSort(e.target.value); });
 document.getElementById('showFlagged').addEventListener('change', e=>{ state.showFlagged=e.target.checked; saveWeddingField({show_flagged:state.showFlagged}); renderVenueList(); });
 document.getElementById('ukGuests').addEventListener('input', e=>{ state.ukGuests=+e.target.value; document.getElementById('ukGuestsVal').textContent=state.ukGuests; saveWeddingField({uk_guests:state.ukGuests}); renderActive(); });
 document.getElementById('slGuests').addEventListener('input', e=>{ state.slGuests=+e.target.value; document.getElementById('slGuestsVal').textContent=state.slGuests; saveWeddingField({sl_guests:state.slGuests}); renderActive(); });
@@ -1547,6 +1581,7 @@ function renderDetailPane(){
   pane.innerHTML = `
     <button class="back-link" id="backBtn">✕ Close</button>
     <div class="detail ${v.country}">
+      ${v.imageUrl ? `<img class="venue-hero" src="${v.imageUrl}" alt="${v.name}" onerror="this.remove()">` : ''}
       <div class="detail-head">
         <div><h2 class="detail-title">${v.name}</h2><div class="detail-loc">${loc}</div><span class="badge ${status}">${statusLabel(v)}</span><br>${websiteLink}</div>
         <div class="detail-actions">
@@ -1818,7 +1853,7 @@ function setAddMode(mode){
 }
 document.getElementById('f_country').addEventListener('change', e=>{ document.getElementById('f_capLabel').textContent = e.target.value==='uk'?'Max capacity':'Max capacity (optional)'; });
 function resetVenueForm(){
-  ['f_name','f_city','f_cap','f_travel','f_baseGuests','f_hireLow','f_hireHigh','f_catLow','f_catHigh','f_extLow','f_extHigh','f_pros','f_cons','f_notes'].forEach(id=>document.getElementById(id).value='');
+  ['f_name','f_city','f_image','f_cap','f_travel','f_baseGuests','f_hireLow','f_hireHigh','f_catLow','f_catHigh','f_extLow','f_extHigh','f_pros','f_cons','f_notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_country').value='uk';
   itemState.hire=[]; itemState.cat=[]; itemState.ext=[];
   renderAllItemEditors('modalOverlay');
@@ -1924,6 +1959,7 @@ function openEditModal(v){
   document.getElementById('addModeRow').style.display='none';
   document.getElementById('fullFields').style.display='block';
   document.getElementById('f_name').value=v.name; document.getElementById('f_country').value=v.country; document.getElementById('f_city').value=v.city||'';
+  document.getElementById('f_image').value=v.imageUrl||'';
   document.getElementById('f_cap').value=v.cap||''; document.getElementById('f_travel').value=v.travel||''; document.getElementById('f_baseGuests').value=v.baseGuests||'';
   document.getElementById('f_hireLow').value=v.hireLow||0; document.getElementById('f_hireHigh').value=v.hireHigh||0;
   document.getElementById('f_catLow').value=v.catLow||0; document.getElementById('f_catHigh').value=v.catHigh||0;
@@ -1947,6 +1983,7 @@ document.getElementById('saveAdd').addEventListener('click', async ()=>{
   const patch = {
     name, country,
     city: document.getElementById('f_city').value.trim() || '—',
+    image_url: document.getElementById('f_image').value.trim() || null,
     cap: parseFloat(document.getElementById('f_cap').value)||(country==='uk'?150:100),
     travel: document.getElementById('f_travel').value.trim() || '—',
     travel_min: 999,
