@@ -92,7 +92,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .keybox{display:flex;flex-wrap:wrap;gap:10px;background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:9px 14px;margin:18px 0;font-size:12px;color:var(--ink-soft);align-items:center;position:relative;}
 .keybox .kitem{display:flex;align-items:center;gap:6px;}
 .keybox .dot{width:10px;height:10px;border-radius:50%;}
-.keybox .swrect{width:14px;height:14px;border-radius:4px;}
 .key-info{position:relative;margin-left:auto;}
 .key-info-btn{width:22px;height:22px;border-radius:50%;background:var(--paper);border:1px solid var(--line);color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
 .key-info-btn:hover{color:var(--ink);border-color:var(--ink-soft);}
@@ -147,7 +146,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .card{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:15px 17px;cursor:pointer;transition:.15s;position:relative;display:flex;flex-direction:column;}
 .card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(33,31,26,.08);}
 .card.active-selection{outline:2px solid var(--ink);}
-.card.flagged{background:var(--flag-soft);border-color:#E0BCB2;}
+.badge.flagtag{background:var(--flag-soft);color:var(--flag);}
+.flag-tag{color:var(--flag);font-size:11px;margin-right:5px;}
 .card-cmp{position:absolute;top:12px;right:12px;width:20px;height:20px;border:1.5px solid var(--ink-soft);border-radius:5px;background:var(--paper);z-index:2;}
 .card-cmp.on{background:var(--ink);border-color:var(--ink);}
 .card-cmp.on::after{content:'✓';color:var(--paper-raised);font-size:13px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
@@ -183,10 +183,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .vtable th.active-sort{color:var(--ink);}
 .vtable th .sort-arrow{font-size:9px;margin-left:3px;}
 .vtable td{padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:middle;}
-.vtable tr.rowflagged td{background:var(--flag-soft);}
 .vtable tr.datarow{cursor:pointer;}
 .vtable tr.datarow:hover td{background:#EFEAD9;}
-.vtable tr.rowflagged:hover td{background:#EFD8CF;}
 .vtable tr.selectedrow td{background:var(--win-soft) !important;}
 .vtable td.namecell{font-family:'Fraunces',serif;font-size:13.5px;}
 .vtable td.numcell{font-family:'IBM Plex Mono',monospace;font-size:12px;}
@@ -1262,7 +1260,7 @@ function renderKey(){
     <span class="badge estimated" style="margin:0;">Estimated</span>
     <span class="badge pending" style="margin:0;">Pending quote</span>
     <span class="badge needsresearch" style="margin:0;">Needs research</span>
-    <span class="kitem"><span class="swrect" style="background:var(--flag-soft);border:1px solid #E0BCB2;"></span>Flagged</span>
+    <span class="badge flagtag" style="margin:0;">⚑ Flagged</span>
     <div class="key-info">
       <button class="key-info-btn" tabindex="0" aria-label="What do these mean?">ⓘ</button>
       <div class="key-info-popover">
@@ -1270,7 +1268,7 @@ function renderKey(){
         <div class="kitem"><span class="badge estimated" style="margin:0;flex-shrink:0;">Estimated</span>Modelled from comparable venues.</div>
         <div class="kitem"><span class="badge pending" style="margin:0;flex-shrink:0;">Pending</span>You're waiting to hear back.</div>
         <div class="kitem"><span class="badge needsresearch" style="margin:0;flex-shrink:0;">Needs research</span>Added by name only.</div>
-        <div class="kitem"><span class="swrect" style="background:var(--flag-soft);border:1px solid #E0BCB2;flex-shrink:0;margin-top:2px;"></span><b style="color:var(--flag)">Flagged</b> — noted as too far, too small, or too expensive; hidden by the toggle above.</div>
+        <div class="kitem"><span class="badge flagtag" style="margin:0;flex-shrink:0;">⚑ Flagged</span>Noted as too far, too small, or too expensive; hidden by the toggle above.</div>
       </div>
     </div>
   `;
@@ -1398,13 +1396,14 @@ function cardHTML(r){
   const isCmp = compareIds.includes(v.id);
   const isSel = state.activeId===v.id;
   const loc = v.country==='uk' ? r.location : `${r.location} · ${r.capTravel||'—'}`;
-  return `<div class="card ${v.flagged?'flagged':''} ${isSel?'active-selection':''}" data-id="${v.id}">
+  return `<div class="card ${isSel?'active-selection':''}" data-id="${v.id}">
     <div class="card-cmp ${isCmp?'on':''}" data-cmp="${v.id}" title="Add to compare"></div>
     ${rowMenuHTML(v.id, 'card')}
     ${v.imageUrl ? `<img class="card-hero" src="${v.imageUrl}" alt="" onerror="this.remove()">` : ''}
     <div class="card-name">${v.name}</div>
     <div class="card-loc">${loc}</div>
     <span class="badge ${r.status}">${r.statusLabel}</span>
+    ${v.flagged ? `<span class="badge flagtag" title="${v.flagReason||'Flagged'}">⚑ Flagged</span>` : ''}
     <div class="card-scores">
       <span class="score-chip">Ours ${r.claude!=null?r.claude.toFixed(1):'–'}</span>
       <span class="score-chip">${partnerName(1)} ${r.p1!=null?r.p1:'–'}</span>
@@ -1425,8 +1424,8 @@ function rowHTML(rows){
   const dataRows = rows.map(r=>{
     const extraCells = showUkCols ? `<td class="numcell">${r.cardiffTime}</td><td class="numcell">${r.hartleburyTime}</td>`
       : (showSlCol ? `<td class="numcell">${r.capTravel}</td>` : `<td class="numcell">${r.capTravel}</td>`);
-    return `<tr class="datarow ${r.flagged?'rowflagged':''} ${state.activeId===r.id?'selectedrow':''}" data-id="${r.id}">
-      <td class="namecell">${r.name}</td>
+    return `<tr class="datarow ${state.activeId===r.id?'selectedrow':''}" data-id="${r.id}">
+      <td class="namecell">${r.flagged?`<span class="flag-tag" title="${r.v.flagReason||'Flagged'}">⚑</span>`:''}${r.name}</td>
       <td>${r.countryLabel}</td>
       <td>${r.location}</td>
       ${extraCells}
