@@ -154,6 +154,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .card-cmp{position:absolute;top:12px;right:12px;width:20px;height:20px;border:1.5px solid var(--ink-soft);border-radius:5px;background:var(--paper);z-index:2;}
 .card-cmp.on{background:var(--ink);border-color:var(--ink);}
 .card-cmp.on::after{content:'✓';color:var(--paper-raised);font-size:13px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.card-star{position:absolute;top:12px;right:38px;z-index:2;width:20px;height:20px;background:none;border:none;font-size:16px;line-height:1;cursor:pointer;color:var(--ink-soft);}
+.card-star:hover{color:#B5811E;}
+.card-star.on{color:#B5811E;border-color:#B5811E;}
+.row-star-btn{background:none;border:none;font-size:15px;line-height:1;padding:0;cursor:pointer;color:var(--ink-soft);}
+.row-star-btn:hover{color:#B5811E;}
+.row-star-btn.on{color:#B5811E;}
 .card-hero{width:100%;height:110px;object-fit:cover;border-radius:10px;margin-bottom:10px;display:block;background:var(--paper);}
 .row-menu, .card-menu{position:relative;}
 .card-menu{position:absolute;top:8px;left:8px;z-index:2;}
@@ -168,7 +174,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .row-menu-dropdown button.danger, .card-menu-dropdown button.danger{color:var(--flag);}
 .row-menu-dropdown button.danger:hover, .card-menu-dropdown button.danger:hover{background:var(--flag-soft);}
 .card-loc{font-size:12px;color:var(--ink-soft);margin:3px 0 8px;}
-.card-name{font-family:'Fraunces',serif;font-size:16px;line-height:1.2;padding-right:24px;}
+.card-name{font-family:'Fraunces',serif;font-size:16px;line-height:1.2;padding-right:48px;}
 .card-cost{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:17px;margin-top:auto;padding-top:8px;}
 .card-cost .per{font-size:11px;font-weight:400;color:var(--ink-soft);display:block;margin-top:2px;}
 .card-scores{display:flex;gap:8px;margin-top:8px;font-size:10.5px;color:var(--ink-soft);flex-wrap:wrap;}
@@ -463,6 +469,7 @@ select.attend-maybe{background-color:var(--paper);}
     <div class="ctl"><label>Season</label><div class="pillrow"><button class="pill" data-season="low">Low</button><button class="pill active" data-season="peak">Peak</button></div></div>
     <div class="ctl"><label>Reality uplift <span class="val" id="upliftVal">+15%</span></label><input type="range" id="uplift" min="0" max="40" value="15" step="5"></div>
     <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="showFlagged" checked> Show flagged venues</label></div>
+    <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="starredOnly"> ★ Shortlisted only</label></div>
     <div class="ctl" style="margin-left:auto;"><label style="visibility:hidden">.</label><button class="btn" id="addBtn" style="width:auto;">+ Add venue</button></div>
   </div>
 </div>
@@ -893,7 +900,7 @@ let venues=[], guests=[], budgetItems=[], checklist=[], calendarEvents=[], moodb
 let selectedGuestIds = new Set();
 let venuePackagesCache = {};
 let state = {
-  main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true,
+  main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true, starredOnly:false,
   sortKey:'cost', sortDir:'asc', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false, openMenuId:null,
   venueSearch:'', venueColFilters:{country:'',location:'',status:'',hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
   guestSearch:'', guestFilters:{side:'',attend:''}, guestSortKey:'', guestSortDir:'asc',
@@ -1031,7 +1038,7 @@ function mapVenueRow(r){
   return {id:r.id, name:r.name, country:r.country, city:r.city, cap:r.cap, travel:r.travel, travelMin:r.travel_min, baseGuests:r.base_guests,
     hireLow:+r.hire_low||0, hireHigh:+r.hire_high||0, catLow:+r.cat_low||0, catHigh:+r.cat_high||0, extLow:+r.ext_low||0, extHigh:+r.ext_high||0,
     src:r.src, claude:r.claude!=null?+r.claude:null, claudeFactors:r.claude_factors||null, ratingP1:r.rating_p1!=null?+r.rating_p1:null, ratingP2:r.rating_p2!=null?+r.rating_p2:null,
-    pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, custom:r.custom, activePackageId:r.active_package_id||null,
+    pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, starred:!!r.starred, custom:r.custom, activePackageId:r.active_package_id||null,
     website:r.website_url||null, sourceLabel:r.source_label||null, sourceUrl:r.source_url||null, cardiffTime:r.cardiff_time||null, hartleburyTime:r.hartlebury_time||null,
     hireItems:r.hire_items||[], cateringItems:r.catering_items||[], extrasItems:r.extras_items||[], imageUrl:r.image_url||null};
 }
@@ -1351,6 +1358,7 @@ function renderChips(){
 function baseVenueList(){
   let list = venues.filter(v => state.vtab==='all' ? true : v.country===state.vtab);
   if(!state.showFlagged) list = list.filter(v=>!v.flagged);
+  if(state.starredOnly) list = list.filter(v=>v.starred);
   return list;
 }
 function computeRow(v){
@@ -1361,7 +1369,7 @@ function computeRow(v){
     location:v.city||'', capTravel: v.country==='uk' ? (v.cap||'') : (v.travel||''),
     cardiffTime:v.cardiffTime||'—', hartleburyTime:v.hartleburyTime||'—',
     hire:p.hire, cat:p.cat, ext:p.ext, total:p.total, perHead:p.total/g,
-    status:statusOf(v), statusLabel:statusLabel(v), claude:v.claude, p1:v.ratingP1, p2:v.ratingP2, flagged:v.flagged
+    status:statusOf(v), statusLabel:statusLabel(v), claude:v.claude, p1:v.ratingP1, p2:v.ratingP2, flagged:v.flagged, starred:v.starred
   };
 }
 function matchesSearch(row, q){
@@ -1386,10 +1394,10 @@ function matchesColFilters(row){
 }
 const SORT_GETTERS = {
   cost:r=>r.total, perHead:r=>r.perHead, name:r=>r.name, country:r=>r.countryLabel, location:r=>r.location,
-  status:r=>r.statusLabel, claude:r=>r.claude, p1:r=>r.p1, p2:r=>r.p2,
+  status:r=>r.statusLabel, claude:r=>r.claude, p1:r=>r.p1, p2:r=>r.p2, starred:r=>r.starred?1:0,
   capTravel:r=>r.capTravel, cardiffTime:r=>r.cardiffTime, hartleburyTime:r=>r.hartleburyTime
 };
-const SORT_DEFAULT_DIR = {cost:'asc', perHead:'asc', claude:'desc', p1:'desc', p2:'desc', name:'asc', country:'asc', location:'asc', status:'asc', capTravel:'asc', cardiffTime:'asc', hartleburyTime:'asc'};
+const SORT_DEFAULT_DIR = {cost:'asc', perHead:'asc', claude:'desc', p1:'desc', p2:'desc', name:'asc', country:'asc', location:'asc', status:'asc', starred:'desc', capTravel:'asc', cardiffTime:'asc', hartleburyTime:'asc'};
 function compareRows(a, b, key){
   const getter = SORT_GETTERS[key];
   if(!getter) return 0;
@@ -1427,6 +1435,7 @@ function cardHTML(r){
   const loc = v.country==='uk' ? r.location : `${r.location} · ${r.capTravel||'—'}`;
   return `<div class="card ${isSel?'active-selection':''}" data-id="${v.id}">
     <div class="card-cmp ${isCmp?'on':''}" data-cmp="${v.id}" title="Add to compare"></div>
+    <button type="button" class="card-star ${v.starred?'on':''}" data-starvenue="${v.id}" title="${v.starred?'Remove from shortlist':'Add to shortlist'}">${v.starred?'★':'☆'}</button>
     ${rowMenuHTML(v.id, 'card', v.flagged)}
     ${v.imageUrl ? `<img class="card-hero" src="${v.imageUrl}" alt="" onerror="this.remove()">` : ''}
     <div class="card-name">${v.name}</div>
@@ -1454,6 +1463,7 @@ function rowHTML(rows){
     const extraCells = showUkCols ? `<td class="numcell">${r.cardiffTime}</td><td class="numcell">${r.hartleburyTime}</td>`
       : (showSlCol ? `<td class="numcell">${r.capTravel}</td>` : `<td class="numcell">${r.capTravel}</td>`);
     return `<tr class="datarow ${state.activeId===r.id?'selectedrow':''}" data-id="${r.id}">
+      <td class="checkcell" onclick="event.stopPropagation()"><button type="button" class="row-star-btn ${r.starred?'on':''}" data-starvenue="${r.id}" title="${r.starred?'Remove from shortlist':'Add to shortlist'}">${r.starred?'★':'☆'}</button></td>
       <td class="namecell"><div class="namecell-inner"><span class="flag-slot" ${r.flagged?`title="${r.v.flagReason||'Flagged'}"`:''}>${r.flagged?'⚑':''}</span><span class="name-text">${r.name}</span></div></td>
       <td>${r.countryLabel}</td>
       <td>${r.location}</td>
@@ -1465,9 +1475,9 @@ function rowHTML(rows){
       <td onclick="event.stopPropagation()">${rowMenuHTML(r.id, 'row', r.flagged)}</td>
     </tr>`;
   }).join('');
-  const colCount = (showUkCols ? 9 : 8) + 1;
+  const colCount = (showUkCols ? 9 : 8) + 2;
   return `<div class="tablewrap"><table class="vtable">
-    <tr>${sortTh('Venue','name')}${sortTh('Country','country')}${sortTh('Location','location')}${extraHeaders}${sortTh('Total','cost')}${sortTh('Per head','perHead')}${sortTh('Status','status')}${sortTh('Ours','claude')}<th></th></tr>
+    <tr>${sortTh('★','starred')}${sortTh('Venue','name')}${sortTh('Country','country')}${sortTh('Location','location')}${extraHeaders}${sortTh('Total','cost')}${sortTh('Per head','perHead')}${sortTh('Status','status')}${sortTh('Ours','claude')}<th></th></tr>
     ${dataRows || `<tr><td colspan="${colCount}" style="text-align:center;padding:30px;color:var(--ink-soft);">No venues match these filters.</td></tr>`}
   </table></div>`;
 }
@@ -1510,7 +1520,7 @@ function renderVenueList(){
     document.getElementById('tableViewWrap').style.display='none';
     document.getElementById('tableScrollTop').style.display='none';
     document.getElementById('grid').innerHTML = rows.map(cardHTML).join('') || '<div class="empty">No venues match these filters.</div>';
-    document.querySelectorAll('.card').forEach(c=>c.addEventListener('click', e=>{ if(e.target.closest('.card-cmp') || e.target.closest('.card-menu')) return; selectVenue(c.dataset.id); }));
+    document.querySelectorAll('.card').forEach(c=>c.addEventListener('click', e=>{ if(e.target.closest('.card-cmp') || e.target.closest('.card-menu') || e.target.closest('.card-star')) return; selectVenue(c.dataset.id); }));
     document.querySelectorAll('.card-cmp').forEach(c=>c.addEventListener('click', e=>{ e.stopPropagation(); toggleCompare(c.dataset.cmp); }));
   } else {
     document.getElementById('grid').style.display='none';
@@ -1534,6 +1544,10 @@ function renderVenueList(){
   document.querySelectorAll('[data-toggleflag]').forEach(btn=>btn.addEventListener('click', e=>{
     e.stopPropagation();
     toggleFlag(btn.dataset.toggleflag);
+  }));
+  document.querySelectorAll('[data-starvenue]').forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    toggleStar(btn.dataset.starvenue);
   }));
   const sortSelectEl = document.getElementById('sortSelect');
   if([...sortSelectEl.options].some(o=>o.value===state.sortKey)) sortSelectEl.value = state.sortKey;
@@ -1579,6 +1593,7 @@ function setSort(key){
 }
 document.getElementById('sortSelect').addEventListener('change', e=>{ setSort(e.target.value); });
 document.getElementById('showFlagged').addEventListener('change', e=>{ state.showFlagged=e.target.checked; saveWeddingField({show_flagged:state.showFlagged}); renderVenueList(); });
+document.getElementById('starredOnly').addEventListener('change', e=>{ state.starredOnly=e.target.checked; renderVenueList(); });
 document.getElementById('ukGuests').addEventListener('input', e=>{ state.ukGuests=+e.target.value; document.getElementById('ukGuestsVal').textContent=state.ukGuests; saveWeddingField({uk_guests:state.ukGuests}); renderActive(); });
 document.getElementById('slGuests').addEventListener('input', e=>{ state.slGuests=+e.target.value; document.getElementById('slGuestsVal').textContent=state.slGuests; saveWeddingField({sl_guests:state.slGuests}); renderActive(); });
 document.getElementById('uplift').addEventListener('input', e=>{ state.uplift=+e.target.value; document.getElementById('upliftVal').textContent='+'+state.uplift+'%'; saveWeddingField({uplift:state.uplift}); renderActive(); });
@@ -1618,6 +1633,15 @@ async function deleteVenue(id){
   await loadVenues();
   if(state.main==='venues'){ if(state.view==='compare') renderCompare(); else renderVenueList(); }
   else if(state.main==='dashboard') renderDashboard();
+}
+async function toggleStar(id){
+  const v = venues.find(x=>x.id===id);
+  if(!v) return;
+  await sb.from('venues').update({starred: !v.starred}).eq('id', id);
+  await loadVenues();
+  if(state.main==='venues'){ if(state.view==='compare') renderCompare(); else renderVenueList(); }
+  else if(state.main==='dashboard') renderDashboard();
+  if(state.activeId===id) renderDetailPane();
 }
 async function toggleFlag(id){
   const v = venues.find(x=>x.id===id);
@@ -1705,6 +1729,7 @@ function renderDetailPane(){
         <div class="detail-actions">
           <button class="btn ${isCmp?'':'ghost'} small" id="cmpBtn">${isCmp?'✓ In compare':'+ Add to compare'}</button>
           <button class="btn ghost small" id="editBtn">Edit / add quote</button>
+          <button class="btn ghost small" id="starBtn">${v.starred?'★ Shortlisted':'☆ Shortlist'}</button>
           <button class="btn ghost small" id="flagBtn">${v.flagged?'✓ Remove flag':'⚑ Flag as unlikely'}</button>
           <button class="btn ghost small" id="exportVenueBtn">⬇ Excel</button>
           <button class="btn danger small" id="delBtn">Delete</button>
@@ -1777,6 +1802,7 @@ function renderDetailPane(){
   document.getElementById('editBtn').addEventListener('click', ()=>openEditModal(v));
   document.getElementById('delBtn').addEventListener('click', ()=>deleteVenue(v.id));
   document.getElementById('flagBtn').addEventListener('click', ()=>toggleFlag(v.id));
+  document.getElementById('starBtn').addEventListener('click', ()=>toggleStar(v.id));
   pane.querySelectorAll('[data-seg]').forEach(seg=>seg.addEventListener('click', ()=>{
     const row = document.getElementById(seg.dataset.seg);
     if(row){ row.classList.add('pulse'); setTimeout(()=>row.classList.remove('pulse'), 900); row.scrollIntoView({behavior:'smooth',block:'center'}); }
