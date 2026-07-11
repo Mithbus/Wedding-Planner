@@ -304,12 +304,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .bulk-bar .bulk-count{font-size:12.5px;font-weight:600;white-space:nowrap;}
 .bulk-bar select{width:auto;border:1px solid rgba(255,255,255,.3);background:var(--ink);color:var(--paper-raised);border-radius:6px;padding:5px 8px;font-size:12.5px;}
 .bulk-bar button{width:auto;background:none;border:1px solid rgba(255,255,255,.3);color:var(--paper-raised);border-radius:6px;padding:5px 10px;font-size:12.5px;}
-select.side-partner1{background:var(--uk-soft);}
-select.side-partner2{background:var(--sl-soft);}
-select.side-both{background:var(--info-soft);}
-select.attend-yes{background:var(--win-soft);}
-select.attend-no{background:var(--flag-soft);}
-select.attend-maybe{background:var(--paper);}
+.plain-table select.cell-input{min-width:118px;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%235A564C' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");}
+select.side-partner1{background-color:var(--uk-soft);}
+select.side-partner2{background-color:var(--sl-soft);}
+select.side-both{background-color:var(--info-soft);}
+select.attend-yes{background-color:var(--win-soft);}
+select.attend-no{background-color:var(--flag-soft);}
+select.attend-maybe{background-color:var(--paper);}
 .tag{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;}
 .tag.p1{background:var(--uk-soft);color:#354430;}
 .tag.p2{background:var(--sl-soft);color:#6B4E15;}
@@ -1065,7 +1066,7 @@ async function applyVenuePackage(v, pkg){
   if(state.main==='venues') renderVenueList(); else if(state.main==='dashboard') renderDashboard();
 }
 async function loadGuests(){
-  const { data } = await sb.from('guests').select('*').eq('wedding_id', weddingId).order('created_at');
+  const { data } = await sb.from('guests').select('*').eq('wedding_id', weddingId).order('created_at').order('id');
   guests = data || [];
 }
 async function loadBudget(){
