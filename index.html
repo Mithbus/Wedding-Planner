@@ -148,6 +148,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(33,31,26,.08);}
 .card.active-selection{outline:2px solid var(--ink);}
 .badge.flagtag{background:var(--flag-soft);color:var(--flag);}
+.badge.bookedtag{background:var(--win-soft);color:var(--win);}
 .namecell-inner{display:flex;align-items:flex-start;}
 .flag-slot{display:inline-block;flex:0 0 16px;width:16px;color:var(--flag);font-size:11px;padding-top:1px;}
 .namecell-inner .name-text{flex:1;min-width:0;}
@@ -1039,6 +1040,7 @@ function mapVenueRow(r){
     hireLow:+r.hire_low||0, hireHigh:+r.hire_high||0, catLow:+r.cat_low||0, catHigh:+r.cat_high||0, extLow:+r.ext_low||0, extHigh:+r.ext_high||0,
     src:r.src, claude:r.claude!=null?+r.claude:null, claudeFactors:r.claude_factors||null, ratingP1:r.rating_p1!=null?+r.rating_p1:null, ratingP2:r.rating_p2!=null?+r.rating_p2:null,
     pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, starred:!!r.starred, custom:r.custom, activePackageId:r.active_package_id||null,
+    booked:!!r.booked, bookedGuests:r.booked_guests||null, bookedSeason:r.booked_season||null, bookedHire:r.booked_hire!=null?+r.booked_hire:null, bookedCat:r.booked_cat!=null?+r.booked_cat:null, bookedExt:r.booked_ext!=null?+r.booked_ext:null,
     website:r.website_url||null, sourceLabel:r.source_label||null, sourceUrl:r.source_url||null, cardiffTime:r.cardiff_time||null, hartleburyTime:r.hartlebury_time||null,
     hireItems:r.hire_items||[], cateringItems:r.catering_items||[], extrasItems:r.extras_items||[], imageUrl:r.image_url||null};
 }
@@ -1078,7 +1080,7 @@ async function loadGuests(){
 }
 async function loadBudget(){
   const { data } = await sb.from('budget_items').select('*').eq('wedding_id', weddingId).order('created_at');
-  budgetItems = (data||[]).map(b=>({id:b.id, cat:b.category, country:b.country, planned:+b.planned||0, actual:+b.actual||0}));
+  budgetItems = (data||[]).map(b=>({id:b.id, cat:b.category, country:b.country, planned:+b.planned||0, actual:+b.actual||0, sourceVenueId:b.source_venue_id||null, sourceVenueName:b.source_venue_name||null}));
 }
 async function loadChecklist(){
   const { data } = await sb.from('checklist_items').select('*').eq('wedding_id', weddingId).order('created_at');
@@ -1253,6 +1255,7 @@ function renderDashboard(){
   const topUk = [...nonFlaggedUk].sort((a,b)=>(b.claude||0)-(a.claude||0))[0];
   const topSl = [...nonFlaggedSl].sort((a,b)=>(b.claude||0)-(a.claude||0))[0];
   const needsResearch = venues.filter(v=>isStub(v)).length;
+  const bookedVenue = venues.find(v=>v.booked);
   const overallBudget = wedding.overall_budget || 0;
   const today = todayStr();
   const upcoming = [...calendarEvents].filter(e=>!e.done).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
@@ -1260,6 +1263,7 @@ function renderDashboard(){
   document.getElementById('tab-dashboard').innerHTML = `
     <div class="section-head"><h2 style="font-size:22px;">Overview</h2></div>
     <div class="dcards">
+      <div class="dcard ${bookedVenue?'clickable':''}" ${bookedVenue?`data-goto="venues" data-venueid="${bookedVenue.id}"`:''}><div class="dlabel">Booked venue</div><div class="dval" style="font-size:19px;">${bookedVenue?bookedVenue.name:'Not booked yet'}</div><div class="dsub">${bookedVenue?`${fmt((bookedVenue.bookedHire||0)+(bookedVenue.bookedCat||0)+(bookedVenue.bookedExt||0))} frozen at booking · ${bookedVenue.bookedGuests||'–'} guests — click to view`:'Star favourites in the Venues tab, then book when ready'}</div></div>
       <div class="dcard clickable" data-goto="guests"><div class="dlabel">Guest list</div><div class="dval">${totalG}</div><div class="dsub">${yesG} likely yes · ${maybeG} maybe · ${noG} no</div></div>
       <div class="dcard clickable" data-goto="guests"><div class="dlabel">Confirmed attendance</div><div class="dval">${confirmedG}</div><div class="dsub">of ${totalG} guests — click to review</div></div>
       <div class="dcard clickable" data-goto="budget"><div class="dlabel">Budget planned vs spent</div><div class="dval">${fmt(actualTotal)}</div><div class="dsub">of ${fmt(plannedTotal)} planned · ${fmt(overallBudget)} overall budget</div>
@@ -1296,6 +1300,7 @@ function renderKey(){
     <span class="badge pending" style="margin:0;">Pending quote</span>
     <span class="badge needsresearch" style="margin:0;">Needs research</span>
     <span class="badge flagtag" style="margin:0;">⚑ Flagged</span>
+    <span class="badge bookedtag" style="margin:0;">✓ Booked</span>
     <div class="key-info">
       <button class="key-info-btn" tabindex="0" aria-label="What do these mean?">ⓘ</button>
       <div class="key-info-popover">
@@ -1304,6 +1309,7 @@ function renderKey(){
         <div class="kitem"><span class="badge pending" style="margin:0;flex-shrink:0;">Pending</span>You're waiting to hear back.</div>
         <div class="kitem"><span class="badge needsresearch" style="margin:0;flex-shrink:0;">Needs research</span>Added by name only.</div>
         <div class="kitem"><span class="badge flagtag" style="margin:0;flex-shrink:0;">⚑ Flagged</span>Noted as too far, too small, or too expensive; hidden by the toggle above.</div>
+        <div class="kitem"><span class="badge bookedtag" style="margin:0;flex-shrink:0;">✓ Booked</span>This is the venue you've actually confirmed — its cost feeds the Budget tab.</div>
       </div>
     </div>
   `;
@@ -1369,7 +1375,7 @@ function computeRow(v){
     location:v.city||'', capTravel: v.country==='uk' ? (v.cap||'') : (v.travel||''),
     cardiffTime:v.cardiffTime||'—', hartleburyTime:v.hartleburyTime||'—',
     hire:p.hire, cat:p.cat, ext:p.ext, total:p.total, perHead:p.total/g,
-    status:statusOf(v), statusLabel:statusLabel(v), claude:v.claude, p1:v.ratingP1, p2:v.ratingP2, flagged:v.flagged, starred:v.starred
+    status:statusOf(v), statusLabel:statusLabel(v), claude:v.claude, p1:v.ratingP1, p2:v.ratingP2, flagged:v.flagged, starred:v.starred, booked:v.booked
   };
 }
 function matchesSearch(row, q){
@@ -1441,6 +1447,7 @@ function cardHTML(r){
     <div class="card-name">${v.name}</div>
     <div class="card-loc">${loc}</div>
     <span class="badge ${r.status}">${r.statusLabel}</span>
+    ${v.booked ? `<span class="badge bookedtag">✓ Booked</span>` : ''}
     ${v.flagged ? `<span class="badge flagtag" title="${v.flagReason||'Flagged'}">⚑ Flagged</span>` : ''}
     <div class="card-scores">
       <span class="score-chip">Ours ${r.claude!=null?r.claude.toFixed(1):'–'}</span>
@@ -1470,7 +1477,7 @@ function rowHTML(rows){
       ${extraCells}
       <td class="numcell"><b>${fmt(r.total)}</b></td>
       <td class="numcell">${fmt(r.perHead)}</td>
-      <td><span class="badge ${r.status}" style="margin:0;">${r.statusLabel}</span></td>
+      <td><span class="badge ${r.status}" style="margin:0;">${r.statusLabel}</span>${r.booked?` <span class="badge bookedtag" style="margin:0;">✓ Booked</span>`:''}</td>
       <td class="numcell">${r.claude!=null?r.claude.toFixed(1):'–'}</td>
       <td onclick="event.stopPropagation()">${rowMenuHTML(r.id, 'row', r.flagged)}</td>
     </tr>`;
@@ -1626,13 +1633,56 @@ function renderTray(){
 
 /* ================= VENUE SELECTION (slide-out drawer) ================= */
 async function deleteVenue(id){
-  if(!confirm('Delete this venue? This can\'t be undone.')) return;
+  const v = venues.find(x=>x.id===id);
+  const msg = (v&&v.booked) ? 'This is your currently booked venue. Delete it anyway? Its budget lines will be kept, but this can\'t be undone.' : 'Delete this venue? This can\'t be undone.';
+  if(!confirm(msg)) return;
   await sb.from('venues').delete().eq('id', id);
   state.openMenuId = null;
   if(state.activeId===id){ state.activeId=null; closeDrawer(); }
   await loadVenues();
   if(state.main==='venues'){ if(state.view==='compare') renderCompare(); else renderVenueList(); }
   else if(state.main==='dashboard') renderDashboard();
+}
+async function refreshVenuesAndBudget(id){
+  await loadVenues(); await loadBudget();
+  if(state.main==='venues'){ if(state.view==='compare') renderCompare(); else renderVenueList(); }
+  else if(state.main==='budget') renderBudget();
+  else if(state.main==='dashboard') renderDashboard();
+  if(state.activeId===id) renderDetailPane();
+}
+async function bookVenue(id){
+  const v = venues.find(x=>x.id===id);
+  if(!v) return;
+  const other = venues.find(x=>x.booked && x.id!==id);
+  if(other){
+    const ok = confirm(`"${other.name}" is currently marked as booked.\n\nBook "${v.name}" instead? ${other.name}'s budget lines will be left as they are — you can edit or remove them yourself in the Budget tab.`);
+    if(!ok) return;
+    await sb.from('venues').update({booked:false}).eq('id', other.id);
+  }
+  const g = guestsFor(v);
+  const parts = costParts(v, g, state.season);
+  await sb.from('venues').update({
+    booked:true, booked_guests:g, booked_season:state.season,
+    booked_hire:parts.hire, booked_cat:parts.cat, booked_ext:parts.ext, booked_at:new Date().toISOString()
+  }).eq('id', id);
+  const { data: existing } = await sb.from('budget_items').select('*').eq('source_venue_id', id);
+  const lineDefs = [['Venue hire', parts.hire], ['Catering', parts.cat], ['Extras', parts.ext]];
+  for(const [label, amount] of lineDefs){
+    if(amount<=0) continue;
+    const match = (existing||[]).find(b=>b.category===label);
+    if(match) await sb.from('budget_items').update({planned:amount, source_venue_name:v.name}).eq('id', match.id);
+    else await sb.from('budget_items').insert({wedding_id:weddingId, category:label, country:v.country, planned:amount, actual:0, source_venue_id:id, source_venue_name:v.name});
+  }
+  await refreshVenuesAndBudget(id);
+}
+async function unbookVenue(id){
+  await sb.from('venues').update({booked:false}).eq('id', id);
+  await refreshVenuesAndBudget(id);
+}
+async function toggleBooked(id){
+  const v = venues.find(x=>x.id===id);
+  if(!v) return;
+  if(v.booked) await unbookVenue(id); else await bookVenue(id);
 }
 async function toggleStar(id){
   const v = venues.find(x=>x.id===id);
@@ -1727,6 +1777,7 @@ function renderDetailPane(){
       <div class="detail-head">
         <div><h2 class="detail-title">${v.name}</h2><div class="detail-loc">${loc}</div><span class="badge ${status}">${statusLabel(v)}</span><br>${websiteLink}</div>
         <div class="detail-actions">
+          <button class="btn small" id="bookBtn" style="${v.booked?'background:var(--win);border-color:var(--win);':''}">${v.booked?'✓ Booked — Unbook':'Book this venue'}</button>
           <button class="btn ${isCmp?'':'ghost'} small" id="cmpBtn">${isCmp?'✓ In compare':'+ Add to compare'}</button>
           <button class="btn ghost small" id="editBtn">Edit / add quote</button>
           <button class="btn ghost small" id="starBtn">${v.starred?'★ Shortlisted':'☆ Shortlist'}</button>
@@ -1735,6 +1786,7 @@ function renderDetailPane(){
           <button class="btn danger small" id="delBtn">Delete</button>
         </div>
       </div>
+      ${v.booked ? `<div class="flag-banner" style="background:var(--win-soft);border-color:#B8D2B2;color:var(--win);">✓ Booked — frozen at ${v.bookedGuests||guests_} guests, ${v.bookedSeason==='peak'?'peak':'low'} season. Linked budget lines are in the Budget tab.</div>` : ''}
       ${v.flagged ? `<div class="flag-banner">⚑ ${v.flagReason||'Flagged'}</div>` : ''}
       ${stub ? `<div class="info-banner">⏳ This venue needs research — no cost data yet. Click "Edit / add quote" once you have details, or ask Claude in chat.</div>` : ''}
 
@@ -1803,6 +1855,7 @@ function renderDetailPane(){
   document.getElementById('delBtn').addEventListener('click', ()=>deleteVenue(v.id));
   document.getElementById('flagBtn').addEventListener('click', ()=>toggleFlag(v.id));
   document.getElementById('starBtn').addEventListener('click', ()=>toggleStar(v.id));
+  document.getElementById('bookBtn').addEventListener('click', ()=>toggleBooked(v.id));
   pane.querySelectorAll('[data-seg]').forEach(seg=>seg.addEventListener('click', ()=>{
     const row = document.getElementById(seg.dataset.seg);
     if(row){ row.classList.add('pulse'); setTimeout(()=>row.classList.remove('pulse'), 900); row.scrollIntoView({behavior:'smooth',block:'center'}); }
@@ -2394,7 +2447,7 @@ function renderBudget(){
   const overallBudget = wedding.overall_budget || 0;
   const shown = visibleBudget();
   const rows = shown.map(b=>`<tr>
-      <td>${b.cat}</td>
+      <td>${b.cat}${b.sourceVenueName ? `<div style="font-size:10.5px;color:var(--ink-soft);margin-top:2px;">from venue: ${b.sourceVenueName}</div>` : ''}</td>
       <td><span class="tag ${b.country==='uk'?'p1':(b.country==='sl'?'p2':'both')}">${({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country]}</span></td>
       <td class="numcell" style="font-family:'IBM Plex Mono',monospace;">${fmt(b.planned)}</td>
       <td><div class="amt-wrap"><input type="number" data-actual="${b.id}" value="${b.actual}" style="max-width:110px;"></div></td>
