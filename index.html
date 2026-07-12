@@ -1351,23 +1351,32 @@ function drawVenuePdfPage(doc, v, currency, guestCount, parts, active){
   const hireItems = active ? active.hireItems : v.hireItems;
   const cateringItems = active ? active.cateringItems : v.cateringItems;
   const extrasItems = active ? active.extrasItems : v.extrasItems;
-  if([hireItems,cateringItems,extrasItems].some(arr=>arr && arr.length)){
+  const costLines = [['Venue hire',hireItems,parts.hire], ['Catering',cateringItems,parts.cat], ['Extras',extrasItems,parts.ext]];
+  if(costLines.some(([,,amount])=>amount>0)){
     y += 20;
     y = pdfEnsureSpace(doc, y, 16);
     y = pdfSectionHeader(doc, "What's included", margin, y, accent);
-    [['Venue hire',hireItems], ['Catering',cateringItems], ['Extras',extrasItems]].forEach(([label,items])=>{
-      if(!items || !items.length) return;
+    costLines.forEach(([label,items,amount])=>{
+      if(amount<=0) return;
       y = pdfEnsureSpace(doc, y, 14);
       doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...ink);
       doc.text(label, margin, y);
       y += 14;
-      items.forEach(it=>{
-        y = pdfEnsureSpace(doc, y, 13);
-        doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(...soft);
-        doc.text(`•  ${it.label}`, margin+8, y);
-        doc.text(pdfMoney(+it.amount||0, v, currency), pageW-margin, y, {align:'right'});
-        y += 13;
-      });
+      if(items && items.length){
+        items.forEach(it=>{
+          y = pdfEnsureSpace(doc, y, 13);
+          doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(...soft);
+          doc.text(`•  ${it.label}`, margin+8, y);
+          doc.text(pdfMoney(+it.amount||0, v, currency), pageW-margin, y, {align:'right'});
+          y += 13;
+        });
+      } else {
+        doc.setFont('helvetica','italic'); doc.setFontSize(9); doc.setTextColor(...soft);
+        const fallback = (label==='Extras' && v.country==='sl')
+          ? 'No itemized breakdown recorded — this estimate typically bundles corkage, AV/multimedia hire, electricity, and a non-refundable deposit. Ask the venue to itemize it.'
+          : 'No itemized breakdown recorded for this figure — ask the venue for a full quote breakdown.';
+        y = pdfWrapText(doc, fallback, margin+8, y, contentW-8, 12);
+      }
       y += 4;
     });
   }
@@ -1684,9 +1693,11 @@ function rowHTML(rows){
   const showSlCol = state.vtab==='sl';
   const extraHeaders = showUkCols ? `${sortTh('From '+homeName(1),'cardiffTime')}${sortTh('From '+homeName(2),'hartleburyTime')}` : sortTh(showSlCol ? 'Travel (Colombo)' : 'Cap./Travel', 'capTravel');
   const dataRows = rows.map(r=>{
+    const isCmp = compareIds.includes(r.id);
     const extraCells = showUkCols ? `<td class="numcell">${r.cardiffTime}</td><td class="numcell">${r.hartleburyTime}</td>`
       : (showSlCol ? `<td class="numcell">${r.capTravel}</td>` : `<td class="numcell">${r.capTravel}</td>`);
     return `<tr class="datarow ${state.activeId===r.id?'selectedrow':''}" data-id="${r.id}">
+      <td class="checkcell" onclick="event.stopPropagation()"><input type="checkbox" class="row-cmp" data-cmp="${r.id}" ${isCmp?'checked':''} title="Select for compare or PDF export"></td>
       <td class="checkcell" onclick="event.stopPropagation()"><button type="button" class="row-star-btn ${r.starred?'on':''}" data-starvenue="${r.id}" title="${r.starred?'Remove from shortlist':'Add to shortlist'}">${r.starred?'★':'☆'}</button></td>
       <td class="namecell"><div class="namecell-inner"><span class="flag-slot" ${r.flagged?`title="${r.v.flagReason||'Flagged'}"`:''}>${r.flagged?'⚑':''}</span><span class="name-text">${r.name}</span></div></td>
       <td>${r.countryLabel}</td>
@@ -1699,9 +1710,9 @@ function rowHTML(rows){
       <td onclick="event.stopPropagation()">${rowMenuHTML(r.id, 'row', r.flagged)}</td>
     </tr>`;
   }).join('');
-  const colCount = (showUkCols ? 9 : 8) + 2;
+  const colCount = (showUkCols ? 9 : 8) + 3;
   return `<div class="tablewrap"><table class="vtable">
-    <tr>${sortTh('★','starred')}${sortTh('Venue','name')}${sortTh('Country','country')}${sortTh('Location','location')}${extraHeaders}${sortTh('Total','cost')}${sortTh('Per head','perHead')}${sortTh('Status','status')}${sortTh('Ours','claude')}<th></th></tr>
+    <tr><th style="font-size:10.5px;">Select</th>${sortTh('★','starred')}${sortTh('Venue','name')}${sortTh('Country','country')}${sortTh('Location','location')}${extraHeaders}${sortTh('Total','cost')}${sortTh('Per head','perHead')}${sortTh('Status','status')}${sortTh('Ours','claude')}<th></th></tr>
     ${dataRows || `<tr><td colspan="${colCount}" style="text-align:center;padding:30px;color:var(--ink-soft);">No venues match these filters.</td></tr>`}
   </table></div>`;
 }
@@ -1753,6 +1764,7 @@ function renderVenueList(){
     document.getElementById('tableViewWrap').innerHTML = rowHTML(rows);
     document.querySelectorAll('.datarow').forEach(tr=>tr.addEventListener('click', ()=>selectVenue(tr.dataset.id)));
     document.querySelectorAll('#tableViewWrap th.sortable').forEach(th=>th.addEventListener('click', ()=>setSort(th.dataset.sortkey)));
+    document.querySelectorAll('.row-cmp').forEach(c=>c.addEventListener('click', e=>{ e.stopPropagation(); toggleCompare(c.dataset.cmp); }));
     syncTopScrollbar();
   }
   document.querySelectorAll('[data-menubtn]').forEach(btn=>btn.addEventListener('click', e=>{
