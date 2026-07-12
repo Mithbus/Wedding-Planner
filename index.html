@@ -1245,7 +1245,7 @@ async function generateVenuePdf(ids, currency){
     const guestCount = guestsFor(v);
     const parts = costParts(v, guestCount, state.season);
     if(i>0) doc.addPage();
-    drawVenuePdfPage(doc, v, currency, guestCount, parts, active);
+    drawVenuePdfPage(doc, v, currency, guestCount, parts, active, packages);
   }
   if(!validIds.length) return;
   const filename = validIds.length===1
@@ -1273,7 +1273,7 @@ function pdfWrapText(doc, text, x, y, maxWidth, lineHeight){
   });
   return y;
 }
-function drawVenuePdfPage(doc, v, currency, guestCount, parts, active){
+function drawVenuePdfPage(doc, v, currency, guestCount, parts, active, packages){
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 50;
@@ -1378,6 +1378,44 @@ function drawVenuePdfPage(doc, v, currency, guestCount, parts, active){
         y = pdfWrapText(doc, fallback, margin+8, y, contentW-8, 12);
       }
       y += 4;
+    });
+  }
+
+  if(packages && packages.length){
+    y += 20;
+    y = pdfEnsureSpace(doc, y, 16);
+    y = pdfSectionHeader(doc, `Available packages (${packages.length})`, margin, y, accent);
+    packages.forEach((pkg, idx)=>{
+      y = pdfEnsureSpace(doc, y, 26);
+      const isActive = !!(active && pkg.id===active.id);
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...ink);
+      doc.text(pkg.name || 'Unnamed package', margin, y);
+      if(isActive){
+        doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...accent);
+        doc.text('CURRENTLY PRICED ABOVE', pageW-margin, y, {align:'right'});
+      }
+      y += 13;
+      const tierLine = [pkg.locationType, pkg.tier].filter(Boolean).join(' · ');
+      if(tierLine){
+        doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...soft);
+        doc.text(tierLine, margin, y);
+        y += 12;
+      }
+      const cateringStr = pkg.cateringPerPerson!=null ? `${pdfMoney(pkg.cateringPerPerson, v, currency)}/head` : pdfMoney(pkg.catering||0, v, currency);
+      const costLine = `Hire ${pdfMoney(pkg.hire||0, v, currency)}   ·   Catering ${cateringStr}   ·   Extras ${pdfMoney(pkg.extras||0, v, currency)}${pkg.baseGuests?`   ·   based on ${pkg.baseGuests} guests`:''}`;
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...ink);
+      y = pdfWrapText(doc, costLine, margin, y, contentW, 12);
+      if(pkg.notes){
+        doc.setFont('helvetica','italic'); doc.setFontSize(8.5); doc.setTextColor(...soft);
+        y = pdfWrapText(doc, pkg.notes, margin, y, contentW, 11);
+      }
+      y += 6;
+      if(idx < packages.length-1){
+        y = pdfEnsureSpace(doc, y, 10);
+        doc.setDrawColor(...line);
+        doc.line(margin, y-3, pageW-margin, y-3);
+        y += 8;
+      }
     });
   }
 
