@@ -468,7 +468,6 @@ select.attend-maybe{background-color:var(--paper);}
   <div class="toolbar-inner">
     <div class="ctl"><label>UK guests <span class="val" id="ukGuestsVal">150</span></label><input type="range" id="ukGuests" min="80" max="220" value="150" step="5"></div>
     <div class="ctl"><label>SL guests <span class="val" id="slGuestsVal">100</span></label><input type="range" id="slGuests" min="40" max="180" value="100" step="5"></div>
-    <div class="ctl"><label>Season</label><div class="pillrow"><button class="pill" data-season="low">Low</button><button class="pill active" data-season="peak">Peak</button></div></div>
     <div class="ctl"><label>Reality uplift <span class="val" id="upliftVal">+15%</span></label><input type="range" id="uplift" min="0" max="40" value="15" step="5"></div>
     <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="showFlagged" checked> Show flagged venues</label></div>
     <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="starredOnly"> ★ Shortlisted only</label></div>
@@ -1038,8 +1037,7 @@ async function enterApp(){
   document.getElementById('ukGuests').value = wedding.uk_guests; state.ukGuests = wedding.uk_guests; document.getElementById('ukGuestsVal').textContent = wedding.uk_guests;
   document.getElementById('slGuests').value = wedding.sl_guests; state.slGuests = wedding.sl_guests; document.getElementById('slGuestsVal').textContent = wedding.sl_guests;
   state.uplift = wedding.uplift; document.getElementById('uplift').value = wedding.uplift; document.getElementById('upliftVal').textContent = '+'+wedding.uplift+'%';
-  state.season = wedding.season || 'peak';
-  document.querySelectorAll('[data-season]').forEach(b=>b.classList.toggle('active', b.dataset.season===state.season));
+  state.season = 'peak';
   state.showFlagged = wedding.show_flagged !== false; document.getElementById('showFlagged').checked = state.showFlagged;
   document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`;
   checkDueNotifications();
@@ -1174,7 +1172,6 @@ function exportVenueToExcel(v, guestCount, parts, packages){
     ['Country', v.country==='uk'?'United Kingdom':'Sri Lanka'],
     ['City / region', v.city||'—'],
     ['Guest count used', guestCount],
-    ['Season', state.season==='peak'?'Peak':'Low'],
     ['Active package', active ? active.name : '—'],
     [],
     ['Cost line', 'Amount (£)'],
@@ -1320,7 +1317,7 @@ function drawVenuePdfPage(doc, v, currency, guestCount, parts, active, packages)
 
   y = pdfSectionHeader(doc, 'Cost breakdown', margin, y, accent);
   doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(...soft);
-  doc.text(`Based on ${guestCount} guests · ${state.season==='peak'?'peak':'low'} season`, margin, y);
+  doc.text(`Based on ${guestCount} guests`, margin, y);
   y += 18;
 
   doc.setFontSize(10.5);
@@ -1422,6 +1419,11 @@ function drawVenuePdfPage(doc, v, currency, guestCount, parts, active, packages)
   y += 14;
   y = pdfEnsureSpace(doc, y, 16);
   y = pdfSectionHeader(doc, 'Notes & source', margin, y, accent);
+  if(v.country==='sl' && v.notes){
+    doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(...soft);
+    y = pdfWrapText(doc, 'Any prices mentioned in the notes below are as originally recorded (£, LKR, or $) and are not converted by the currency choice above — only the cost breakdown and package figures are.', margin, y, contentW, 10);
+    y += 4;
+  }
   doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(...ink);
   y = pdfWrapText(doc, v.notes || 'No notes recorded.', margin, y, contentW, 13);
   y += 6;
@@ -1871,10 +1873,6 @@ document.getElementById('starredOnly').addEventListener('change', e=>{ state.sta
 document.getElementById('ukGuests').addEventListener('input', e=>{ state.ukGuests=+e.target.value; document.getElementById('ukGuestsVal').textContent=state.ukGuests; saveWeddingField({uk_guests:state.ukGuests}); renderActive(); });
 document.getElementById('slGuests').addEventListener('input', e=>{ state.slGuests=+e.target.value; document.getElementById('slGuestsVal').textContent=state.slGuests; saveWeddingField({sl_guests:state.slGuests}); renderActive(); });
 document.getElementById('uplift').addEventListener('input', e=>{ state.uplift=+e.target.value; document.getElementById('upliftVal').textContent='+'+state.uplift+'%'; saveWeddingField({uplift:state.uplift}); renderActive(); });
-document.querySelectorAll('[data-season]').forEach(btn=>btn.addEventListener('click', ()=>{
-  document.querySelectorAll('[data-season]').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-  state.season = btn.dataset.season; saveWeddingField({season:state.season}); renderActive();
-}));
 
 /* ================= COMPARE TRAY ================= */
 function toggleCompare(id){
@@ -2056,7 +2054,7 @@ function renderDetailPane(){
           <button class="btn danger small" id="delBtn">Delete</button>
         </div>
       </div>
-      ${v.booked ? `<div class="flag-banner" style="background:var(--win-soft);border-color:#B8D2B2;color:var(--win);">✓ Booked — frozen at ${v.bookedGuests||guests_} guests, ${v.bookedSeason==='peak'?'peak':'low'} season. Linked budget lines are in the Budget tab.</div>` : ''}
+      ${v.booked ? `<div class="flag-banner" style="background:var(--win-soft);border-color:#B8D2B2;color:var(--win);">✓ Booked — frozen at ${v.bookedGuests||guests_} guests. Linked budget lines are in the Budget tab.</div>` : ''}
       ${v.flagged ? `<div class="flag-banner">⚑ ${v.flagReason||'Flagged'}</div>` : ''}
       ${stub ? `<div class="info-banner">⏳ This venue needs research — no cost data yet. Click "Edit / add quote" once you have details, or ask Claude in chat.</div>` : ''}
 
@@ -2064,7 +2062,7 @@ function renderDetailPane(){
         <div>
           <div id="pkgPickerBlock"></div>
           <div class="info-card">
-            <div class="breakdown-title">Cost breakdown · ${guests_} guests · ${state.season==='peak'?'peak':'low'} season · click a segment to highlight</div>
+            <div class="breakdown-title">Cost breakdown · ${guests_} guests · click a segment to highlight</div>
             <div class="stack ${v.country}">
               <div class="seg-hire" data-seg="row-hire" style="width:${pctHire}%">${pctHire>10?fmt(parts.hire):''}</div>
               <div class="seg-catering" data-seg="row-cat" style="width:${pctCat}%">${pctCat>10?fmt(parts.cat):''}</div>
