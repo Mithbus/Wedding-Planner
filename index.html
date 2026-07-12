@@ -1683,10 +1683,10 @@ function cardHTML(r){
     <div class="card-cost">${fmt(r.total)}<span class="per">${fmt(r.perHead)}/head · ${guestsFor(v)} guests</span></div>
   </div>`;
 }
-function sortTh(label, key){
+function sortTh(label, key, extraStyle){
   const active = state.sortKey===key;
   const arrow = active ? `<span class="sort-arrow">${state.sortDir==='asc'?'▲':'▼'}</span>` : '';
-  return `<th class="sortable ${active?'active-sort':''}" data-sortkey="${key}">${label}${arrow}</th>`;
+  return `<th class="sortable ${active?'active-sort':''}" data-sortkey="${key}" ${extraStyle?`style="${extraStyle}"`:''}>${label}${arrow}</th>`;
 }
 function rowHTML(rows){
   const showUkCols = state.vtab==='uk';
@@ -1712,7 +1712,7 @@ function rowHTML(rows){
   }).join('');
   const colCount = (showUkCols ? 9 : 8) + 3;
   return `<div class="tablewrap"><table class="vtable">
-    <tr><th style="font-size:10.5px;">Select</th>${sortTh('★','starred')}${sortTh('Venue','name')}${sortTh('Country','country')}${sortTh('Location','location')}${extraHeaders}${sortTh('Total','cost')}${sortTh('Per head','perHead')}${sortTh('Status','status')}${sortTh('Ours','claude')}<th></th></tr>
+    <tr><th style="font-size:10.5px;">Select</th>${sortTh('Shortlisted','starred')}${sortTh('Venue','name','padding-left:28px;')}${sortTh('Country','country')}${sortTh('Location','location')}${extraHeaders}${sortTh('Total','cost')}${sortTh('Per head','perHead')}${sortTh('Status','status')}${sortTh('Ours','claude')}<th></th></tr>
     ${dataRows || `<tr><td colspan="${colCount}" style="text-align:center;padding:30px;color:var(--ink-soft);">No venues match these filters.</td></tr>`}
   </table></div>`;
 }
