@@ -342,7 +342,7 @@ select.attend-maybe{background-color:var(--paper);}
 .amt-wrap.large::before{font-size:20px;left:0;color:var(--ink);}
 .amt-wrap.large input{padding-left:26px !important;}
 .dual-cur{display:flex;gap:5px;}
-.dual-cur .amt-wrap{flex:1;min-width:85px;}
+.dual-cur .amt-wrap{flex:1;min-width:100px;}
 .dual-cur input{width:100%;}
 
 .checklist-group{margin-bottom:26px;}
@@ -691,8 +691,8 @@ select.attend-maybe{background-color:var(--paper);}
     <div class="form-row"><label>Which wedding?</label><select id="b_country"><option value="shared">Shared / both</option><option value="uk">UK</option><option value="sl">Sri Lanka</option></select></div>
     <div class="form-row"><label>Amount</label>
       <div class="dual-cur">
-        <div class="amt-wrap" data-symbol="£"><input id="b_actual" type="number" value="0"></div>
-        <div class="amt-wrap" data-symbol="Rs"><input id="b_actualLkr" type="number" value="0"></div>
+        <div class="amt-wrap" data-symbol="£"><input id="b_actual" type="text" inputmode="decimal" value="0"></div>
+        <div class="amt-wrap" data-symbol="Rs"><input id="b_actualLkr" type="text" inputmode="decimal" value="0"></div>
       </div>
     </div>
     <div class="form-row"><label class="chk"><input type="checkbox" id="b_paid"> Already paid</label></div>
@@ -710,8 +710,8 @@ select.attend-maybe{background-color:var(--paper);}
     <div class="form-row"><label>From</label><input id="ct_contributor" placeholder="e.g. Mithun's parents"></div>
     <div class="form-row"><label>Amount</label>
       <div class="dual-cur">
-        <div class="amt-wrap" data-symbol="£"><input id="ct_amountGbp" type="number"></div>
-        <div class="amt-wrap" data-symbol="Rs"><input id="ct_amountLkr" type="number"></div>
+        <div class="amt-wrap" data-symbol="£"><input id="ct_amountGbp" type="text" inputmode="decimal"></div>
+        <div class="amt-wrap" data-symbol="Rs"><input id="ct_amountLkr" type="text" inputmode="decimal"></div>
       </div>
     </div>
     <div class="form-row"><label>Date received</label><input id="ct_date" type="date"></div>
@@ -1022,6 +1022,14 @@ function effectiveContribAmount(c, currency){
 function vendorTotalCostDisplay(v, currency){
   if(currency==='lkr') return v.totalCostLkr ? v.totalCostLkr : (v.totalCostGbp||0)*LKR_PER_GBP;
   return v.totalCostGbp ? v.totalCostGbp : (v.totalCostLkr||0)/LKR_PER_GBP;
+}
+function formatNumInput(n){
+  n = +n||0;
+  if(!n) return '';
+  return n.toLocaleString('en-US', {maximumFractionDigits:2});
+}
+function parseNumInput(str){
+  return parseFloat(String(str==null?'':str).replace(/,/g,''))||0;
 }
 document.querySelectorAll('#currencyToggle [data-currency]').forEach(btn=>btn.addEventListener('click', ()=>{
   const c = btn.dataset.currency;
@@ -2882,18 +2890,18 @@ function renderBudget(){
   const overallBudgetDisplay = toDisplayAmount(overallBudget);
   const shown = visibleBudget();
   const rows = shown.map(b=>{
-    const vendorName = b.vendorId ? (vendors.find(v=>v.id===b.vendorId)||{}).name : (b.sourceVenueName || '');
+    const vendorOptionsHTML = `<option value="">— None —</option>` + vendors.map(v=>`<option value="${v.id}" ${b.vendorId===v.id?'selected':''}>${escAttr(v.name)}</option>`).join('');
     return `<tr>
       <td><input type="text" class="cell-input cell-input-wide" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}"></td>
-      <td><span style="font-size:12.5px;color:var(--ink-soft);">${vendorName||'—'}</span></td>
+      <td><select class="cell-input cell-input-wide" data-field="vendorId" data-budgetid="${b.id}">${vendorOptionsHTML}</select>${!b.vendorId && b.sourceVenueName ? `<div style="font-size:10px;color:var(--ink-soft);margin-top:2px;">from venue: ${b.sourceVenueName}</div>` : ''}</td>
       <td><select class="cell-input" data-field="country" data-budgetid="${b.id}">
           <option value="shared" ${b.country==='shared'?'selected':''}>Shared</option>
           <option value="uk" ${b.country==='uk'?'selected':''}>UK</option>
           <option value="sl" ${b.country==='sl'?'selected':''}>Sri Lanka</option>
         </select></td>
       <td><div class="dual-cur">
-          <div class="amt-wrap" data-symbol="£"><input type="number" data-budgetfield="actual" data-budgetid="${b.id}" value="${b.actual||''}"></div>
-          <div class="amt-wrap" data-symbol="Rs"><input type="number" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${b.actualLkr||''}"></div>
+          <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div>
+          <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div>
         </div></td>
       <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
       <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
@@ -2914,7 +2922,7 @@ function renderBudget(){
     <div class="dcards">
       <div class="dcard">
         <div class="dlabel">Overall wedding budget (${currencySymbol()})</div>
-        <div class="amt-wrap large" data-symbol="${currencySymbol()}"><input type="number" id="overallBudgetInput" value="${Math.round(overallBudgetDisplay)}" style="font-family:'Fraunces',serif;font-size:22px;border:none;background:none;padding:0;width:100%;color:var(--ink);"></div>
+        <div class="amt-wrap large" data-symbol="${currencySymbol()}"><input type="text" inputmode="decimal" id="overallBudgetInput" value="${formatNumInput(Math.round(overallBudgetDisplay))}" style="font-family:'Fraunces',serif;font-size:22px;border:none;background:none;padding:0;width:100%;color:var(--ink);"></div>
         <div class="dsub">Editable — shared, updates live for both of you</div>
       </div>
       <div class="dcard"><div class="dlabel">Total spent so far</div><div class="dval">${fmtCurrencyAmount(spentTotal)}</div><div class="dsub">amounts marked Paid</div>
@@ -2938,15 +2946,15 @@ function renderBudget(){
       ${contributions.map(c=>`<tr>
         <td><input type="text" class="cell-input cell-input-wide" data-ctfield="contributor" data-ctid="${c.id}" value="${escAttr(c.contributor)}"></td>
         <td><div class="dual-cur">
-            <div class="amt-wrap" data-symbol="£"><input type="number" data-ctfield="amountGbp" data-ctid="${c.id}" value="${c.amountGbp||''}"></div>
-            <div class="amt-wrap" data-symbol="Rs"><input type="number" data-ctfield="amountLkr" data-ctid="${c.id}" value="${c.amountLkr||''}"></div>
+            <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountGbp" data-ctid="${c.id}" value="${formatNumInput(c.amountGbp)}"></div>
+            <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountLkr" data-ctid="${c.id}" value="${formatNumInput(c.amountLkr)}"></div>
           </div></td>
         <td><input type="date" class="cell-input" data-ctfield="dateReceived" data-ctid="${c.id}" value="${c.dateReceived||''}"></td>
         <td><input type="text" class="cell-input cell-input-wide" data-ctfield="notes" data-ctid="${c.id}" value="${escAttr(c.notes||'')}" placeholder="Add a note…"></td>
         <td><button class="rmbtn" data-rmcontrib="${c.id}">Remove</button></td>
       </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:24px;">No contributions logged yet.</td></tr>'}
     </table></div>`;
-  document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: fromDisplayAmount(parseFloat(e.target.value)||0)}); renderBudget(); });
+  document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: fromDisplayAmount(parseNumInput(e.target.value))}); renderBudget(); });
   document.getElementById('addBudgetBtn').addEventListener('click', ()=>budgetOverlay.classList.add('show'));
   document.getElementById('exportBudgetBtn').addEventListener('click', ()=>{
     const header=['Category','Vendor','Wedding','Amount (£)','Amount (Rs)','Paid','Due date','Comments'];
@@ -2966,7 +2974,7 @@ function renderBudget(){
     updateBudgetField(el.dataset.budgetid, el.dataset.field, el.value.trim());
   }));
   budgetTabEl.querySelectorAll('[data-budgetfield]').forEach(inp=>inp.addEventListener('change', ()=>{
-    updateBudgetField(inp.dataset.budgetid, inp.dataset.budgetfield, parseFloat(inp.value)||0);
+    updateBudgetField(inp.dataset.budgetid, inp.dataset.budgetfield, parseNumInput(inp.value));
   }));
   budgetTabEl.querySelectorAll('.paid-check').forEach(cb=>cb.addEventListener('change', ()=>{
     updateBudgetField(cb.dataset.budgetid, 'paid', cb.checked);
@@ -2975,7 +2983,7 @@ function renderBudget(){
     await sb.from('budget_items').delete().eq('id', b.dataset.rmbudget); await loadBudget(); renderBudget();
   }));
   budgetTabEl.querySelectorAll('[data-ctfield]').forEach(el=>el.addEventListener('change', ()=>{
-    const value = el.type==='number' ? (parseFloat(el.value)||0) : el.value.trim();
+    const value = el.classList.contains('num-input') ? parseNumInput(el.value) : el.value.trim();
     updateContributionField(el.dataset.ctid, el.dataset.ctfield, value);
   }));
   budgetTabEl.querySelectorAll('[data-rmcontrib]').forEach(b=>b.addEventListener('click', async ()=>{
@@ -3000,8 +3008,8 @@ document.getElementById('saveContribution').addEventListener('click', async ()=>
   if(!contributor){ alert('Please enter who this is from.'); return; }
   await sb.from('contributions').insert({
     wedding_id:weddingId, contributor,
-    amount_gbp:parseFloat(document.getElementById('ct_amountGbp').value)||0,
-    amount_lkr:parseFloat(document.getElementById('ct_amountLkr').value)||0,
+    amount_gbp:parseNumInput(document.getElementById('ct_amountGbp').value),
+    amount_lkr:parseNumInput(document.getElementById('ct_amountLkr').value),
     date_received:document.getElementById('ct_date').value || null,
     notes:document.getElementById('ct_notes').value.trim()
   });
@@ -3016,8 +3024,8 @@ document.getElementById('saveBudget').addEventListener('click', async ()=>{
   if(!cat){ alert('Please enter a category.'); return; }
   await sb.from('budget_items').insert({
     wedding_id:weddingId, category:cat, country:document.getElementById('b_country').value,
-    actual:parseFloat(document.getElementById('b_actual').value)||0,
-    actual_lkr:parseFloat(document.getElementById('b_actualLkr').value)||0,
+    actual:parseNumInput(document.getElementById('b_actual').value),
+    actual_lkr:parseNumInput(document.getElementById('b_actualLkr').value),
     paid:document.getElementById('b_paid').checked,
     notes:document.getElementById('b_notes').value.trim()
   });
@@ -3089,8 +3097,8 @@ function renderVendors(){
         <td><input type="text" class="cell-input cell-input-wide" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}" placeholder="e.g. Deposit" list="paymentTagSuggestions"></td>
         <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
         <td><div class="dual-cur">
-            <div class="amt-wrap" data-symbol="£"><input type="number" data-budgetfield="actual" data-budgetid="${b.id}" value="${b.actual||''}"></div>
-            <div class="amt-wrap" data-symbol="Rs"><input type="number" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${b.actualLkr||''}"></div>
+            <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div>
+            <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div>
           </div></td>
         <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
         <td>${dueDateBadge(b.dueDate, b.paid)}</td>
@@ -3106,11 +3114,11 @@ function renderVendors(){
             <input type="text" class="cell-input" data-vendorfield="category" data-vendorid="${v.id}" value="${escAttr(v.category)}" placeholder="Category">
           </div>
         </div>
-        <div style="text-align:right;min-width:180px;">
+        <div style="text-align:right;min-width:220px;">
           <div style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Total cost</div>
           <div class="dual-cur" style="justify-content:flex-end;">
-            <div class="amt-wrap" data-symbol="£" style="max-width:90px;"><input type="number" data-vendornumfield="totalCostGbp" data-vendorid="${v.id}" value="${v.totalCostGbp||''}"></div>
-            <div class="amt-wrap" data-symbol="Rs" style="max-width:100px;"><input type="number" data-vendornumfield="totalCostLkr" data-vendorid="${v.id}" value="${v.totalCostLkr||''}"></div>
+            <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostGbp" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostGbp)}"></div>
+            <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostLkr" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostLkr)}"></div>
           </div>
           <div style="font-size:11px;color:var(--ink-soft);margin-top:6px;">${fmtCurrencyAmount(paidSoFar)} paid</div>
           ${totalCost>0 && Math.abs(unaccounted)>1 ? `<div style="font-size:10.5px;color:var(--flag);margin-top:2px;">${unaccounted>0?fmtCurrencyAmount(unaccounted)+' not yet scheduled':fmtCurrencyAmount(-unaccounted)+' over total cost'}</div>` : ''}
@@ -3149,7 +3157,7 @@ function renderVendors(){
     updateBudgetField(el.dataset.budgetid, el.dataset.field, el.value.trim());
   }));
   vendorsTabEl.querySelectorAll('[data-budgetfield]').forEach(inp=>inp.addEventListener('change', ()=>{
-    updateBudgetField(inp.dataset.budgetid, inp.dataset.budgetfield, parseFloat(inp.value)||0);
+    updateBudgetField(inp.dataset.budgetid, inp.dataset.budgetfield, parseNumInput(inp.value));
   }));
   vendorsTabEl.querySelectorAll('.paid-check').forEach(cb=>cb.addEventListener('change', ()=>{
     updateBudgetField(cb.dataset.budgetid, 'paid', cb.checked);
@@ -3162,7 +3170,7 @@ function renderVendors(){
     updateVendorField(el.dataset.vendorid, el.dataset.vendorfield, el.value.trim());
   }));
   vendorsTabEl.querySelectorAll('[data-vendornumfield]').forEach(inp=>inp.addEventListener('change', ()=>{
-    updateVendorField(inp.dataset.vendorid, inp.dataset.vendornumfield, parseFloat(inp.value)||0);
+    updateVendorField(inp.dataset.vendorid, inp.dataset.vendornumfield, parseNumInput(inp.value));
   }));
   vendorsTabEl.querySelectorAll('[data-rmvendor]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm("Delete this vendor? Its payment lines will be kept in the Budget tab, just unlinked.")) return;
