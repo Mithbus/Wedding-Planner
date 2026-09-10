@@ -59,6 +59,12 @@ select.btn.ghost.small{-webkit-appearance:none;-moz-appearance:none;appearance:n
 .main-area{flex:1;min-width:0;}
 header{padding:0;text-align:left;}
 .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;}
+.eyebrow-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.eyebrow-row .eyebrow{margin-bottom:6px;}
+.currency-pillrow{display:flex;border:1px solid var(--line);border-radius:20px;overflow:hidden;margin-bottom:6px;}
+.currency-pill{font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:.04em;padding:3px 8px;background:var(--paper-raised);color:var(--ink-soft);border:none;cursor:pointer;width:auto;}
+.currency-pill:hover{color:var(--ink);}
+.currency-pill.active{background:var(--ink);color:var(--paper-raised);}
 h1{font-size:24px;letter-spacing:-.01em;margin-bottom:0;line-height:1.1;}
 h1 em{font-style:italic;font-weight:340;color:var(--ink-soft);}
 .sync-status{font-size:11px;color:var(--ink-soft);margin-top:8px;}
@@ -442,7 +448,13 @@ select.attend-maybe{background-color:var(--paper);}
 <aside class="sidebar">
   <div class="side-top">
     <header>
-      <div class="eyebrow" id="coupleEyebrow">The Wedding Ledger</div>
+      <div class="eyebrow-row">
+        <div class="eyebrow" id="coupleEyebrow">The Wedding Ledger</div>
+        <div class="currency-pillrow" id="currencyToggle">
+          <button type="button" class="currency-pill" data-currency="lkr" title="Show all costs in Sri Lankan Rupees">LKR</button>
+          <button type="button" class="currency-pill" data-currency="gbp" title="Show all costs in British Pounds">GBP</button>
+        </div>
+      </div>
       <h1>The Wedding <em>Ledger</em></h1>
       <div class="sync-status" id="syncStatus"><span class="sync-dot" id="syncDot"></span>Synced</div>
     </header>
@@ -671,9 +683,9 @@ select.attend-maybe{background-color:var(--paper);}
     <div class="form-row"><label>Category</label><input id="b_cat" placeholder="e.g. Photography"></div>
     <div class="form-grid2">
       <div class="form-row"><label>Which wedding?</label><select id="b_country"><option value="shared">Shared / both</option><option value="uk">UK</option><option value="sl">Sri Lanka</option></select></div>
-      <div class="form-row"><label>Planned (£)</label><div class="amt-wrap"><input id="b_planned" type="number"></div></div>
+      <div class="form-row"><label data-curlabel="Planned">Planned (£)</label><div class="amt-wrap"><input id="b_planned" type="number"></div></div>
     </div>
-    <div class="form-row"><label>Actual spent so far (£)</label><div class="amt-wrap"><input id="b_actual" type="number" value="0"></div></div>
+    <div class="form-row"><label data-curlabel="Actual spent so far">Actual spent so far (£)</label><div class="amt-wrap"><input id="b_actual" type="number" value="0"></div></div>
     <div class="modal-actions">
       <button class="btn ghost" id="cancelBudget">Cancel</button>
       <button class="btn" id="saveBudget">Add line</button>
@@ -920,7 +932,7 @@ let venues=[], guests=[], budgetItems=[], checklist=[], calendarEvents=[], moodb
 let selectedGuestIds = new Set();
 let venuePackagesCache = {};
 let state = {
-  main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true, starredOnly:false,
+  main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true, starredOnly:false, displayCurrency:'lkr',
   sortKey:'cost', sortDir:'asc', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false, openMenuId:null,
   venueSearch:'', venueColFilters:{country:'',location:'',status:'',hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
   guestSearch:'', guestFilters:{side:'',attend:''}, guestSortKey:'', guestSortDir:'asc',
@@ -933,7 +945,27 @@ const MOOD_CATEGORIES = ["Venue","Décor & Styling","Attire & Beauty","Flowers",
 
 function partnerName(slot){ if(!wedding) return slot===1?'Partner 1':'Partner 2'; return slot===1?(wedding.partner1_name||'Partner 1'):(wedding.partner2_name||'Partner 2'); }
 function homeName(n){ if(!wedding) return n===1?'Home 1':'Home 2'; return n===1?(wedding.home1_name||'Cardiff'):(wedding.home2_name||'Hartlebury'); }
-function fmt(n){ return '£' + Math.round(n||0).toLocaleString('en-GB'); }
+const LKR_PER_GBP = 447;
+function fmt(n){
+  n = n||0;
+  if(state.displayCurrency==='lkr') return 'Rs ' + Math.round(n*LKR_PER_GBP).toLocaleString('en-US');
+  return '£' + Math.round(n).toLocaleString('en-GB');
+}
+function toDisplayAmount(amountGBP){ return state.displayCurrency==='lkr' ? (amountGBP||0)*LKR_PER_GBP : (amountGBP||0); }
+function fromDisplayAmount(amount){ return state.displayCurrency==='lkr' ? (amount||0)/LKR_PER_GBP : (amount||0); }
+function currencySymbol(){ return state.displayCurrency==='lkr' ? 'Rs' : '£'; }
+function syncCurrencyToggleUI(){
+  document.querySelectorAll('#currencyToggle [data-currency]').forEach(b=>b.classList.toggle('active', b.dataset.currency===state.displayCurrency));
+  document.querySelectorAll('[data-curlabel]').forEach(el=>{ el.textContent = `${el.dataset.curlabel} (${currencySymbol()})`; });
+}
+document.querySelectorAll('#currencyToggle [data-currency]').forEach(btn=>btn.addEventListener('click', ()=>{
+  const c = btn.dataset.currency;
+  if(state.displayCurrency===c) return;
+  state.displayCurrency = c;
+  syncCurrencyToggleUI();
+  saveWeddingField({display_currency:c});
+  renderActive();
+}));
 function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
 
@@ -1039,6 +1071,7 @@ async function enterApp(){
   state.uplift = wedding.uplift; document.getElementById('uplift').value = wedding.uplift; document.getElementById('upliftVal').textContent = '+'+wedding.uplift+'%';
   state.season = 'peak';
   state.showFlagged = wedding.show_flagged !== false; document.getElementById('showFlagged').checked = state.showFlagged;
+  state.displayCurrency = wedding.display_currency || 'lkr'; syncCurrencyToggleUI();
   document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`;
   checkDueNotifications();
   renderDashboard();
@@ -1124,7 +1157,7 @@ function setupRealtime(){
   sb.channel('wedding-checklist-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'checklist_items',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadChecklist(); if(state.main==='checklist') renderChecklist(); if(state.main==='dashboard') renderDashboard(); flash(); }).subscribe();
   sb.channel('wedding-calendar-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'calendar_events',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadCalendar(); if(state.main==='calendar') renderCalendar(); if(state.main==='dashboard') renderDashboard(); checkDueNotifications(); flash(); }).subscribe();
   sb.channel('wedding-moodboard-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'moodboard_items',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadMoodboard(); if(state.main==='moodboard') renderMoodboard(); flash(); }).subscribe();
-  sb.channel('wedding-row-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'weddings',filter:`id=eq.${weddingId}`}, async ()=>{ await loadWeddingRow(); document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`; renderActive(); flash(); }).subscribe();
+  sb.channel('wedding-row-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'weddings',filter:`id=eq.${weddingId}`}, async ()=>{ await loadWeddingRow(); document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`; state.displayCurrency = wedding.display_currency || 'lkr'; syncCurrencyToggleUI(); renderActive(); flash(); }).subscribe();
 }
 async function saveWeddingField(patch){
   wedding = {...wedding, ...patch};
@@ -1203,10 +1236,9 @@ function exportVenueToExcel(v, guestCount, parts, packages){
 }
 
 /* ================= VENUES: PDF EXPORT ================= */
-const LKR_PER_GBP = 447;
 function pdfMoney(amountGBP, v, currency){
   if(v.country==='sl' && currency==='lkr') return 'Rs ' + Math.round(amountGBP*LKR_PER_GBP).toLocaleString('en-US');
-  return fmt(amountGBP);
+  return '£' + Math.round(amountGBP||0).toLocaleString('en-GB');
 }
 function hexRgb(hex){ const n=parseInt(hex.replace('#',''),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
 function slugify(s){ return (s||'venue').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
@@ -2725,7 +2757,7 @@ function renderBudget(){
       <td>${b.cat}${b.sourceVenueName ? `<div style="font-size:10.5px;color:var(--ink-soft);margin-top:2px;">from venue: ${b.sourceVenueName}</div>` : ''}</td>
       <td><span class="tag ${b.country==='uk'?'p1':(b.country==='sl'?'p2':'both')}">${({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country]}</span></td>
       <td class="numcell" style="font-family:'IBM Plex Mono',monospace;">${fmt(b.planned)}</td>
-      <td><div class="amt-wrap"><input type="number" data-actual="${b.id}" value="${b.actual}" style="max-width:110px;"></div></td>
+      <td><div class="amt-wrap"><input type="number" data-actual="${b.id}" value="${Math.round(toDisplayAmount(b.actual))}" style="max-width:110px;"></div></td>
       <td class="numcell" style="font-family:'IBM Plex Mono',monospace;color:${b.actual>b.planned?'var(--flag)':'var(--win)'}">${fmt(b.planned-b.actual)}</td>
       <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
     </tr>`).join('');
@@ -2741,8 +2773,8 @@ function renderBudget(){
     </div>
     <div class="dcards">
       <div class="dcard">
-        <div class="dlabel">Overall wedding budget</div>
-        <div class="amt-wrap large"><input type="number" id="overallBudgetInput" value="${overallBudget}" style="font-family:'Fraunces',serif;font-size:22px;border:none;background:none;padding:0;width:100%;color:var(--ink);"></div>
+        <div class="dlabel">Overall wedding budget (${currencySymbol()})</div>
+        <div class="amt-wrap large"><input type="number" id="overallBudgetInput" value="${Math.round(toDisplayAmount(overallBudget))}" style="font-family:'Fraunces',serif;font-size:22px;border:none;background:none;padding:0;width:100%;color:var(--ink);"></div>
         <div class="dsub">Editable — shared, updates live for both of you</div>
       </div>
       <div class="dcard"><div class="dlabel">Total planned</div><div class="dval">${fmt(plannedTotal)}</div><div class="dsub" style="color:${plannedTotal>overallBudget?'var(--flag)':'var(--ink-soft)'}">${plannedTotal>overallBudget?'Over overall budget by '+fmt(plannedTotal-overallBudget):fmt(overallBudget-plannedTotal)+' headroom left'}</div></div>
@@ -2752,10 +2784,10 @@ function renderBudget(){
     </div>
     <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines</p>
     <table class="plain-table">
-      <tr><th>Category</th><th>Wedding</th><th>Planned</th><th>Actual spent</th><th>Remaining</th><th></th></tr>
+      <tr><th>Category</th><th>Wedding</th><th>Planned</th><th>Actual spent (${currencySymbol()})</th><th>Remaining</th><th></th></tr>
       ${rows || '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
     </table>`;
-  document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: parseFloat(e.target.value)||0}); renderBudget(); });
+  document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: fromDisplayAmount(parseFloat(e.target.value)||0)}); renderBudget(); });
   document.getElementById('addBudgetBtn').addEventListener('click', ()=>budgetOverlay.classList.add('show'));
   document.getElementById('exportBudgetBtn').addEventListener('click', ()=>{
     const header=['Category','Wedding','Planned (£)','Actual (£)','Remaining (£)'];
@@ -2765,7 +2797,7 @@ function renderBudget(){
   document.getElementById('budgetSearch').addEventListener('input', e=>{ state.budgetSearch=e.target.value; renderBudget(); });
   document.getElementById('bf_country').addEventListener('change', e=>{ state.budgetFilters.country=e.target.value; renderBudget(); });
   document.querySelectorAll('[data-actual]').forEach(inp=>inp.addEventListener('change', async ()=>{
-    await sb.from('budget_items').update({actual: parseFloat(inp.value)||0}).eq('id', inp.dataset.actual);
+    await sb.from('budget_items').update({actual: fromDisplayAmount(parseFloat(inp.value)||0)}).eq('id', inp.dataset.actual);
     await loadBudget(); renderBudget();
   }));
   document.querySelectorAll('[data-rmbudget]').forEach(b=>b.addEventListener('click', async ()=>{
@@ -2777,7 +2809,7 @@ document.getElementById('cancelBudget').addEventListener('click', ()=>budgetOver
 document.getElementById('saveBudget').addEventListener('click', async ()=>{
   const cat = document.getElementById('b_cat').value.trim();
   if(!cat){ alert('Please enter a category.'); return; }
-  await sb.from('budget_items').insert({wedding_id:weddingId, category:cat, country:document.getElementById('b_country').value, planned:parseFloat(document.getElementById('b_planned').value)||0, actual:parseFloat(document.getElementById('b_actual').value)||0});
+  await sb.from('budget_items').insert({wedding_id:weddingId, category:cat, country:document.getElementById('b_country').value, planned:fromDisplayAmount(parseFloat(document.getElementById('b_planned').value)||0), actual:fromDisplayAmount(parseFloat(document.getElementById('b_actual').value)||0)});
   ['b_cat','b_planned'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('b_actual').value='0';
   budgetOverlay.classList.remove('show');
