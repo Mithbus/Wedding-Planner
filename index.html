@@ -319,9 +319,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .bulk-bar .bulk-count{font-size:12.5px;font-weight:600;white-space:nowrap;}
 .bulk-bar select{width:auto;border:1px solid rgba(255,255,255,.3);background:var(--ink);color:var(--paper-raised);border-radius:6px;padding:5px 8px;font-size:12.5px;}
 .bulk-bar button{width:auto;background:none;border:1px solid rgba(255,255,255,.3);color:var(--paper-raised);border-radius:6px;padding:5px 10px;font-size:12.5px;}
-.cell-input{width:100%;min-width:80px;box-sizing:border-box;border:1px solid transparent;background-color:transparent;padding:6px 7px;border-radius:6px;font-family:inherit;font-size:12.5px;color:var(--ink);}
-.cell-input:hover{background-color:var(--paper);}
-.cell-input:focus{background-color:var(--paper-raised);border-color:var(--line);outline:none;}
+.cell-input{width:100%;min-width:80px;box-sizing:border-box;border:1px solid var(--line);background-color:var(--paper-raised);padding:6px 7px;border-radius:6px;font-family:inherit;font-size:12.5px;color:var(--ink);}
+.cell-input:hover{border-color:var(--ink-soft);}
+.cell-input:focus{background-color:#fff;border-color:var(--ink-soft);outline:none;}
+.cell-input.cell-input-wide{min-width:210px;}
 .plain-table select.cell-input{min-width:118px;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%235A564C' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");}
 select.side-partner1{background-color:var(--uk-soft);}
 select.side-partner2{background-color:var(--sl-soft);}
@@ -2874,7 +2875,6 @@ async function updateBudgetField(id, field, value){
 function renderBudget(){
   const committedTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
   const spentTotal = budgetItems.filter(b=>b.paid).reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
-  const fundsReceived = contributions.reduce((s,c)=>s+effectiveContribAmount(c,state.displayCurrency),0);
   const fundsReceivedGbp = contributions.reduce((s,c)=>s+effectiveContribAmount(c,'gbp'),0);
   const spentTotalGbp = budgetItems.filter(b=>b.paid).reduce((s,b)=>s+effectiveAmount(b,'actual','gbp'),0);
   const fundingBalanceGbp = fundsReceivedGbp - spentTotalGbp;
@@ -2882,10 +2882,10 @@ function renderBudget(){
   const overallBudgetDisplay = toDisplayAmount(overallBudget);
   const shown = visibleBudget();
   const rows = shown.map(b=>{
-    const vendorName = b.vendorId ? (vendors.find(v=>v.id===b.vendorId)||{}).name : null;
-    const subLabel = vendorName ? `vendor: ${vendorName}` : (b.sourceVenueName ? `from venue: ${b.sourceVenueName}` : '');
+    const vendorName = b.vendorId ? (vendors.find(v=>v.id===b.vendorId)||{}).name : (b.sourceVenueName || '');
     return `<tr>
-      <td><input type="text" class="cell-input" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}">${subLabel ? `<div style="font-size:10px;color:var(--ink-soft);margin-top:2px;">${subLabel}</div>` : ''}</td>
+      <td><input type="text" class="cell-input cell-input-wide" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}"></td>
+      <td><span style="font-size:12.5px;color:var(--ink-soft);">${vendorName||'—'}</span></td>
       <td><select class="cell-input" data-field="country" data-budgetid="${b.id}">
           <option value="shared" ${b.country==='shared'?'selected':''}>Shared</option>
           <option value="uk" ${b.country==='uk'?'selected':''}>UK</option>
@@ -2897,7 +2897,7 @@ function renderBudget(){
         </div></td>
       <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
       <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
-      <td><input type="text" class="cell-input" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Add a comment…"></td>
+      <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Add a comment…"></td>
       <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
     </tr>`;
   }).join('');
@@ -2921,13 +2921,13 @@ function renderBudget(){
         <div class="progress-track"><div class="progress-fill" style="width:${overallBudgetDisplay?Math.min(100,spentTotal/overallBudgetDisplay*100):0}%;background:${spentTotal>overallBudgetDisplay?'var(--flag)':'var(--ink)'}"></div></div></div>
       <div class="dcard"><div class="dlabel">Total committed</div><div class="dval">${fmtCurrencyAmount(committedTotal)}</div><div class="dsub">paid + scheduled</div></div>
       <div class="dcard"><div class="dlabel">Remaining vs overall budget</div><div class="dval" style="color:${overallBudgetDisplay-committedTotal<0?'var(--flag)':'var(--ink)'}">${fmtCurrencyAmount(overallBudgetDisplay-committedTotal)}</div></div>
-      <div class="dcard"><div class="dlabel">Funds received</div><div class="dval">${fmtCurrencyAmount(fundsReceived)}</div><div class="dsub">from parents & other contributions</div></div>
+      <div class="dcard"><div class="dlabel">Funds received (£)</div><div class="dval">${fmtCurrencyAmount(fundsReceivedGbp,'gbp')}</div><div class="dsub">from parents & other contributions — always in GBP</div></div>
       <div class="dcard"><div class="dlabel">Funding balance (£)</div><div class="dval" style="color:${fundingBalanceGbp<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(fundingBalanceGbp,'gbp')}</div><div class="dsub">received minus spent so far — always in GBP</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines</p>
     <div class="tablewrap"><table class="plain-table">
-      <tr><th>Category</th><th>Wedding</th><th>Amount</th><th>Paid</th><th>Due date</th><th>Comments</th><th></th></tr>
-      ${rows || '<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
+      <tr><th>Category</th><th>Vendor</th><th>Wedding</th><th>Amount</th><th>Paid</th><th>Due date</th><th>Comments</th><th></th></tr>
+      ${rows || '<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
     </table></div>
     <div class="section-head" style="margin-top:30px;">
       <h2 style="font-size:19px;">Funding sources</h2>
@@ -2936,23 +2936,23 @@ function renderBudget(){
     <div class="tablewrap"><table class="plain-table">
       <tr><th>From</th><th>Amount</th><th>Date received</th><th>Notes</th><th></th></tr>
       ${contributions.map(c=>`<tr>
-        <td><input type="text" class="cell-input" data-ctfield="contributor" data-ctid="${c.id}" value="${escAttr(c.contributor)}"></td>
+        <td><input type="text" class="cell-input cell-input-wide" data-ctfield="contributor" data-ctid="${c.id}" value="${escAttr(c.contributor)}"></td>
         <td><div class="dual-cur">
             <div class="amt-wrap" data-symbol="£"><input type="number" data-ctfield="amountGbp" data-ctid="${c.id}" value="${c.amountGbp||''}"></div>
             <div class="amt-wrap" data-symbol="Rs"><input type="number" data-ctfield="amountLkr" data-ctid="${c.id}" value="${c.amountLkr||''}"></div>
           </div></td>
         <td><input type="date" class="cell-input" data-ctfield="dateReceived" data-ctid="${c.id}" value="${c.dateReceived||''}"></td>
-        <td><input type="text" class="cell-input" data-ctfield="notes" data-ctid="${c.id}" value="${escAttr(c.notes||'')}" placeholder="Add a note…"></td>
+        <td><input type="text" class="cell-input cell-input-wide" data-ctfield="notes" data-ctid="${c.id}" value="${escAttr(c.notes||'')}" placeholder="Add a note…"></td>
         <td><button class="rmbtn" data-rmcontrib="${c.id}">Remove</button></td>
       </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:24px;">No contributions logged yet.</td></tr>'}
     </table></div>`;
   document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: fromDisplayAmount(parseFloat(e.target.value)||0)}); renderBudget(); });
   document.getElementById('addBudgetBtn').addEventListener('click', ()=>budgetOverlay.classList.add('show'));
   document.getElementById('exportBudgetBtn').addEventListener('click', ()=>{
-    const header=['Category','Wedding','Amount (£)','Amount (Rs)','Paid','Due date','Comments'];
+    const header=['Category','Vendor','Wedding','Amount (£)','Amount (Rs)','Paid','Due date','Comments'];
     const totalActualGbp = shown.reduce((s,b)=>s+(b.actual||0),0);
     const totalActualLkr = shown.reduce((s,b)=>s+(b.actualLkr||0),0);
-    const aoa=[header, ...shown.map(b=>[b.cat, ({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country], b.actual||'', b.actualLkr||'', b.paid?'Yes':'No', b.dueDate||'', b.notes||'']), [], ['Total', '', totalActualGbp, totalActualLkr, '', '', ''],
+    const aoa=[header, ...shown.map(b=>[b.cat, (b.vendorId ? (vendors.find(v=>v.id===b.vendorId)||{}).name : (b.sourceVenueName||'')), ({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country], b.actual||'', b.actualLkr||'', b.paid?'Yes':'No', b.dueDate||'', b.notes||'']), [], ['Total', '', '', totalActualGbp, totalActualLkr, '', '', ''],
       [], ['Funding sources'], ['From','Amount (£)','Amount (Rs)','Date received','Notes'],
       ...contributions.map(c=>[c.contributor, c.amountGbp||'', c.amountLkr||'', c.dateReceived||'', c.notes||'']),
       [], ['Total received', contributions.reduce((s,c)=>s+(c.amountGbp||0),0), contributions.reduce((s,c)=>s+(c.amountLkr||0),0)]];
@@ -3086,7 +3086,7 @@ function renderVendors(){
     const nextDue = vendorNextDue(v.id);
     const paymentRows = payments.map(b=>{
       return `<tr>
-        <td><input type="text" class="cell-input" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}" placeholder="e.g. Deposit" list="paymentTagSuggestions"></td>
+        <td><input type="text" class="cell-input cell-input-wide" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}" placeholder="e.g. Deposit" list="paymentTagSuggestions"></td>
         <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
         <td><div class="dual-cur">
             <div class="amt-wrap" data-symbol="£"><input type="number" data-budgetfield="actual" data-budgetid="${b.id}" value="${b.actual||''}"></div>
@@ -3094,7 +3094,7 @@ function renderVendors(){
           </div></td>
         <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
         <td>${dueDateBadge(b.dueDate, b.paid)}</td>
-        <td><input type="text" class="cell-input" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Comment…"></td>
+        <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Comment…"></td>
         <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
       </tr>`;
     }).join('');
