@@ -156,6 +156,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .card.active-selection{outline:2px solid var(--ink);}
 .badge.flagtag{background:var(--flag-soft);color:var(--flag);}
 .badge.bookedtag{background:var(--win-soft);color:var(--win);}
+.badge.archivedtag{background:#E8E2D2;color:var(--ink-soft);}
 .namecell-inner{display:flex;align-items:flex-start;}
 .flag-slot{display:inline-block;flex:0 0 16px;width:16px;color:var(--flag);font-size:11px;padding-top:1px;}
 .namecell-inner .name-text{flex:1;min-width:0;}
@@ -487,6 +488,7 @@ select.attend-maybe{background-color:var(--paper);}
     <div class="ctl"><label>Reality uplift <span class="val" id="upliftVal">+15%</span></label><input type="range" id="uplift" min="0" max="40" value="15" step="5"></div>
     <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="showFlagged" checked> Show flagged venues</label></div>
     <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="starredOnly"> ★ Shortlisted only</label></div>
+    <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="showArchived"> Show archived venues</label></div>
     <div class="ctl" style="margin-left:auto;"><label style="visibility:hidden">.</label><button class="btn" id="addBtn" style="width:auto;">+ Add venue</button></div>
   </div>
 </div>
@@ -687,12 +689,6 @@ select.attend-maybe{background-color:var(--paper);}
     <h2>Add budget line</h2>
     <div class="form-row"><label>Category</label><input id="b_cat" placeholder="e.g. Photography"></div>
     <div class="form-row"><label>Which wedding?</label><select id="b_country"><option value="shared">Shared / both</option><option value="uk">UK</option><option value="sl">Sri Lanka</option></select></div>
-    <div class="form-row"><label>Planned</label>
-      <div class="dual-cur">
-        <div class="amt-wrap" data-symbol="£"><input id="b_planned" type="number"></div>
-        <div class="amt-wrap" data-symbol="Rs"><input id="b_plannedLkr" type="number"></div>
-      </div>
-    </div>
     <div class="form-row"><label>Actual spent so far</label>
       <div class="dual-cur">
         <div class="amt-wrap" data-symbol="£"><input id="b_actual" type="number" value="0"></div>
@@ -985,7 +981,7 @@ let venues=[], guests=[], budgetItems=[], checklist=[], calendarEvents=[], moodb
 let selectedGuestIds = new Set();
 let venuePackagesCache = {};
 let state = {
-  main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true, starredOnly:false, displayCurrency:'lkr',
+  main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true, starredOnly:false, showArchived:false, displayCurrency:'lkr',
   sortKey:'cost', sortDir:'asc', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false, openMenuId:null,
   venueSearch:'', venueColFilters:{country:'',location:'',status:'',hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
   guestSearch:'', guestFilters:{side:'',attend:''}, guestSortKey:'', guestSortDir:'asc',
@@ -1138,6 +1134,7 @@ async function enterApp(){
   state.uplift = wedding.uplift; document.getElementById('uplift').value = wedding.uplift; document.getElementById('upliftVal').textContent = '+'+wedding.uplift+'%';
   state.season = 'peak';
   state.showFlagged = wedding.show_flagged !== false; document.getElementById('showFlagged').checked = state.showFlagged;
+  state.showArchived = wedding.show_archived === true; document.getElementById('showArchived').checked = state.showArchived;
   state.displayCurrency = wedding.display_currency || 'lkr'; syncCurrencyToggleUI();
   document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`;
   checkDueNotifications();
@@ -1157,7 +1154,7 @@ function mapVenueRow(r){
   return {id:r.id, name:r.name, country:r.country, city:r.city, cap:r.cap, travel:r.travel, travelMin:r.travel_min, baseGuests:r.base_guests,
     hireLow:+r.hire_low||0, hireHigh:+r.hire_high||0, catLow:+r.cat_low||0, catHigh:+r.cat_high||0, extLow:+r.ext_low||0, extHigh:+r.ext_high||0,
     src:r.src, claude:r.claude!=null?+r.claude:null, claudeFactors:r.claude_factors||null, ratingP1:r.rating_p1!=null?+r.rating_p1:null, ratingP2:r.rating_p2!=null?+r.rating_p2:null,
-    pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, starred:!!r.starred, custom:r.custom, activePackageId:r.active_package_id||null,
+    pros:r.pros, cons:r.cons, notes:r.notes, flagged:r.flagged, flagReason:r.flag_reason, starred:!!r.starred, archived:!!r.archived, custom:r.custom, activePackageId:r.active_package_id||null,
     booked:!!r.booked, bookedGuests:r.booked_guests||null, bookedSeason:r.booked_season||null, bookedHire:r.booked_hire!=null?+r.booked_hire:null, bookedCat:r.booked_cat!=null?+r.booked_cat:null, bookedExt:r.booked_ext!=null?+r.booked_ext:null,
     website:r.website_url||null, sourceLabel:r.source_label||null, sourceUrl:r.source_url||null, cardiffTime:r.cardiff_time||null, hartleburyTime:r.hartlebury_time||null,
     hireItems:r.hire_items||[], cateringItems:r.catering_items||[], extrasItems:r.extras_items||[], imageUrl:r.image_url||null};
@@ -1622,23 +1619,16 @@ function renderDashboard(){
   const noG = guests.filter(g=>g.attend==='no').length;
   const confirmedG = guests.filter(g=>g.confirmed).length;
   const totalG = guests.length;
-  const plannedTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'planned',state.displayCurrency),0);
   const actualTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
   const doneTasks = checklist.filter(t=>t.done).length;
   const clPct = checklist.length ? Math.round(doneTasks/checklist.length*100) : 0;
-  const nonFlaggedUk = venues.filter(v=>v.country==='uk');
-  const nonFlaggedSl = venues.filter(v=>v.country==='sl' && !v.flagged);
-  const topUk = [...nonFlaggedUk].sort((a,b)=>(b.claude||0)-(a.claude||0))[0];
-  const topSl = [...nonFlaggedSl].sort((a,b)=>(b.claude||0)-(a.claude||0))[0];
   const needsResearch = venues.filter(v=>isStub(v)).length;
   const bookedVenue = venues.find(v=>v.booked);
   const overallBudget = toDisplayAmount(wedding.overall_budget || 0);
   const today = todayStr();
   const upcoming = [...calendarEvents].filter(e=>!e.done).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
-  const upcomingPayments = budgetItems.filter(b=>{
-    const remaining = effectiveAmount(b,'planned',state.displayCurrency) - effectiveAmount(b,'actual',state.displayCurrency);
-    return b.dueDate && remaining>0;
-  }).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  const upcomingPayments = budgetItems.filter(b=>b.dueDate && effectiveAmount(b,'actual',state.displayCurrency)<=0)
+    .sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
   const nextPayment = upcomingPayments[0];
 
   document.getElementById('tab-dashboard').innerHTML = `
@@ -1647,14 +1637,12 @@ function renderDashboard(){
       <div class="dcard ${bookedVenue?'clickable':''}" ${bookedVenue?`data-goto="venues" data-venueid="${bookedVenue.id}"`:''}><div class="dlabel">Booked venue</div><div class="dval" style="font-size:19px;">${bookedVenue?bookedVenue.name:'Not booked yet'}</div><div class="dsub">${bookedVenue?`${fmt((bookedVenue.bookedHire||0)+(bookedVenue.bookedCat||0)+(bookedVenue.bookedExt||0))} frozen at booking · ${bookedVenue.bookedGuests||'–'} guests — click to view`:'Star favourites in the Venues tab, then book when ready'}</div></div>
       <div class="dcard clickable" data-goto="guests"><div class="dlabel">Guest list</div><div class="dval">${totalG}</div><div class="dsub">${yesG} likely yes · ${maybeG} maybe · ${noG} no</div></div>
       <div class="dcard clickable" data-goto="guests"><div class="dlabel">Confirmed attendance</div><div class="dval">${confirmedG}</div><div class="dsub">of ${totalG} guests — click to review</div></div>
-      <div class="dcard clickable" data-goto="budget"><div class="dlabel">Budget planned vs spent</div><div class="dval">${fmtCurrencyAmount(actualTotal)}</div><div class="dsub">of ${fmtCurrencyAmount(plannedTotal)} planned · ${fmtCurrencyAmount(overallBudget)} overall budget</div>
-        <div class="progress-track"><div class="progress-fill" style="width:${plannedTotal?Math.min(100,actualTotal/plannedTotal*100):0}%"></div></div></div>
-      <div class="dcard ${nextPayment?'clickable':''}" ${nextPayment?'data-goto="vendors"':''}><div class="dlabel">Next payment due</div><div class="dval" style="font-size:19px;">${nextPayment?nextPayment.cat:'None scheduled'}</div><div class="dsub">${nextPayment?`${fmtCurrencyAmount(effectiveAmount(nextPayment,'planned',state.displayCurrency)-effectiveAmount(nextPayment,'actual',state.displayCurrency))} due ${nextPayment.dueDate} — click to view`:'Add due dates in the Vendors tab'}</div></div>
+      <div class="dcard clickable" data-goto="budget"><div class="dlabel">Budget spent so far</div><div class="dval">${fmtCurrencyAmount(actualTotal)}</div><div class="dsub">of ${fmtCurrencyAmount(overallBudget)} overall budget</div>
+        <div class="progress-track"><div class="progress-fill" style="width:${overallBudget?Math.min(100,actualTotal/overallBudget*100):0}%"></div></div></div>
+      <div class="dcard ${nextPayment?'clickable':''}" ${nextPayment?'data-goto="vendors"':''}><div class="dlabel">Next payment due</div><div class="dval" style="font-size:19px;">${nextPayment?nextPayment.cat:'None scheduled'}</div><div class="dsub">${nextPayment?`Due ${nextPayment.dueDate} — click to view`:'Add due dates in the Vendors tab'}</div></div>
       <div class="dcard clickable" data-goto="checklist"><div class="dlabel">Checklist progress</div><div class="dval">${clPct}%</div><div class="dsub">${doneTasks} of ${checklist.length} tasks done</div>
         <div class="progress-track"><div class="progress-fill" style="width:${clPct}%"></div></div></div>
       <div class="dcard clickable" data-goto="venues"><div class="dlabel">Venues needing research</div><div class="dval" style="color:${needsResearch?'var(--info)':'var(--ink)'}">${needsResearch}</div><div class="dsub">Added by name only, awaiting details</div></div>
-      <div class="dcard ${topUk?'clickable':''}" ${topUk?`data-goto="venues" data-venueid="${topUk.id}"`:''}><div class="dlabel">Top UK pick (our score)</div><div class="dval" style="font-size:19px;">${topUk?topUk.name:'–'}</div><div class="dsub">${topUk?topUk.claude.toFixed(1)+'/10 — click to view':''}</div></div>
-      <div class="dcard ${topSl?'clickable':''}" ${topSl?`data-goto="venues" data-venueid="${topSl.id}"`:''}><div class="dlabel">Top Sri Lanka pick (our score)</div><div class="dval" style="font-size:19px;">${topSl?topSl.name:'–'}</div><div class="dsub">${topSl?topSl.claude.toFixed(1)+'/10 — click to view':''}</div></div>
     </div>
     <div class="section-head" style="margin-top:30px;"><h2 style="font-size:19px;">Upcoming tasks &amp; reminders</h2></div>
     <div class="upcoming-list">
@@ -1746,6 +1734,7 @@ function renderChips(){
 function baseVenueList(){
   let list = venues.filter(v => state.vtab==='all' ? true : v.country===state.vtab);
   if(!state.showFlagged) list = list.filter(v=>!v.flagged);
+  if(!state.showArchived) list = list.filter(v=>!v.archived);
   if(state.starredOnly) list = list.filter(v=>v.starred);
   return list;
 }
@@ -1806,12 +1795,13 @@ function visibleRows(){
   rows.sort((a,b)=>compareRows(a,b,state.sortKey)*dir);
   return rows;
 }
-function rowMenuHTML(id, kind, flagged){
+function rowMenuHTML(id, kind, flagged, archived){
   const open = state.openMenuId===id;
   return `<div class="${kind}-menu" data-menuwrap="${id}">
     <button type="button" class="${kind}-menu-btn" data-menubtn="${id}">⋯</button>
     <div class="${kind}-menu-dropdown ${open?'show':''}">
       <button type="button" data-toggleflag="${id}">${flagged?'✓ Remove flag':'⚑ Flag as unlikely'}</button>
+      <button type="button" data-togglearchive="${id}">${archived?'✓ Unarchive':'🗄 Archive venue'}</button>
       <button type="button" class="danger" data-delvenue="${id}">Delete venue</button>
     </div>
   </div>`;
@@ -1824,13 +1814,14 @@ function cardHTML(r){
   return `<div class="card ${isSel?'active-selection':''}" data-id="${v.id}">
     <div class="card-cmp ${isCmp?'on':''}" data-cmp="${v.id}" title="Add to compare"></div>
     <button type="button" class="card-star ${v.starred?'on':''}" data-starvenue="${v.id}" title="${v.starred?'Remove from shortlist':'Add to shortlist'}">${v.starred?'★':'☆'}</button>
-    ${rowMenuHTML(v.id, 'card', v.flagged)}
+    ${rowMenuHTML(v.id, 'card', v.flagged, v.archived)}
     ${v.imageUrl ? `<img class="card-hero" src="${v.imageUrl}" alt="" onerror="this.remove()">` : ''}
     <div class="card-name">${v.name}</div>
     <div class="card-loc">${loc}</div>
     <span class="badge ${r.status}">${r.statusLabel}</span>
     ${v.booked ? `<span class="badge bookedtag">✓ Booked</span>` : ''}
     ${v.flagged ? `<span class="badge flagtag" title="${v.flagReason||'Flagged'}">⚑ Flagged</span>` : ''}
+    ${v.archived ? `<span class="badge archivedtag">🗄 Archived</span>` : ''}
     <div class="card-scores">
       <span class="score-chip">Ours ${r.claude!=null?r.claude.toFixed(1):'–'}</span>
       <span class="score-chip">${partnerName(1)} ${r.p1!=null?r.p1:'–'}</span>
@@ -1861,9 +1852,9 @@ function rowHTML(rows){
       ${extraCells}
       <td class="numcell"><b>${fmt(r.total)}</b></td>
       <td class="numcell">${fmt(r.perHead)}</td>
-      <td><span class="badge ${r.status}" style="margin:0;">${r.statusLabel}</span>${r.booked?` <span class="badge bookedtag" style="margin:0;">✓ Booked</span>`:''}</td>
+      <td><span class="badge ${r.status}" style="margin:0;">${r.statusLabel}</span>${r.booked?` <span class="badge bookedtag" style="margin:0;">✓ Booked</span>`:''}${r.v.archived?` <span class="badge archivedtag" style="margin:0;">🗄 Archived</span>`:''}</td>
       <td class="numcell">${r.claude!=null?r.claude.toFixed(1):'–'}</td>
-      <td onclick="event.stopPropagation()">${rowMenuHTML(r.id, 'row', r.flagged)}</td>
+      <td onclick="event.stopPropagation()">${rowMenuHTML(r.id, 'row', r.flagged, r.v.archived)}</td>
     </tr>`;
   }).join('');
   const colCount = (showUkCols ? 9 : 8) + 3;
@@ -1937,6 +1928,10 @@ function renderVenueList(){
     e.stopPropagation();
     toggleFlag(btn.dataset.toggleflag);
   }));
+  document.querySelectorAll('[data-togglearchive]').forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    toggleArchived(btn.dataset.togglearchive);
+  }));
   document.querySelectorAll('[data-starvenue]').forEach(btn=>btn.addEventListener('click', e=>{
     e.stopPropagation();
     toggleStar(btn.dataset.starvenue);
@@ -1985,6 +1980,7 @@ function setSort(key){
 }
 document.getElementById('sortSelect').addEventListener('change', e=>{ setSort(e.target.value); });
 document.getElementById('showFlagged').addEventListener('change', e=>{ state.showFlagged=e.target.checked; saveWeddingField({show_flagged:state.showFlagged}); renderVenueList(); });
+document.getElementById('showArchived').addEventListener('change', e=>{ state.showArchived=e.target.checked; saveWeddingField({show_archived:state.showArchived}); renderVenueList(); });
 document.getElementById('starredOnly').addEventListener('change', e=>{ state.starredOnly=e.target.checked; renderVenueList(); });
 document.getElementById('ukGuests').addEventListener('input', e=>{ state.ukGuests=+e.target.value; document.getElementById('ukGuestsVal').textContent=state.ukGuests; saveWeddingField({uk_guests:state.ukGuests}); renderActive(); });
 document.getElementById('slGuests').addEventListener('input', e=>{ state.slGuests=+e.target.value; document.getElementById('slGuestsVal').textContent=state.slGuests; saveWeddingField({sl_guests:state.slGuests}); renderActive(); });
@@ -2092,6 +2088,16 @@ async function toggleFlag(id){
   else if(state.main==='dashboard') renderDashboard();
   if(state.activeId===id) renderDetailPane();
 }
+async function toggleArchived(id){
+  const v = venues.find(x=>x.id===id);
+  if(!v) return;
+  state.openMenuId = null;
+  await sb.from('venues').update({archived: !v.archived}).eq('id', id);
+  await loadVenues();
+  if(state.main==='venues'){ if(state.view==='compare') renderCompare(); else renderVenueList(); }
+  else if(state.main==='dashboard') renderDashboard();
+  if(state.activeId===id) renderDetailPane();
+}
 document.addEventListener('click', (e)=>{
   if(state.openMenuId && !e.target.closest('.row-menu, .card-menu')){
     state.openMenuId = null;
@@ -2165,6 +2171,7 @@ function renderDetailPane(){
           <button class="btn ghost small" id="editBtn">Edit / add quote</button>
           <button class="btn ghost small" id="starBtn">${v.starred?'★ Shortlisted':'☆ Shortlist'}</button>
           <button class="btn ghost small" id="flagBtn">${v.flagged?'✓ Remove flag':'⚑ Flag as unlikely'}</button>
+          <button class="btn ghost small" id="archiveBtn">${v.archived?'✓ Unarchive':'🗄 Archive'}</button>
           <button class="btn ghost small" id="exportVenueBtn">⬇ Excel</button>
           <button class="btn ghost small" id="exportVenuePdfBtn">⬇ PDF</button>
           <button class="btn danger small" id="delBtn">Delete</button>
@@ -2238,6 +2245,7 @@ function renderDetailPane(){
   document.getElementById('editBtn').addEventListener('click', ()=>openEditModal(v));
   document.getElementById('delBtn').addEventListener('click', ()=>deleteVenue(v.id));
   document.getElementById('flagBtn').addEventListener('click', ()=>toggleFlag(v.id));
+  document.getElementById('archiveBtn').addEventListener('click', ()=>toggleArchived(v.id));
   document.getElementById('starBtn').addEventListener('click', ()=>toggleStar(v.id));
   document.getElementById('bookBtn').addEventListener('click', ()=>toggleBooked(v.id));
   pane.querySelectorAll('[data-seg]').forEach(seg=>seg.addEventListener('click', ()=>{
@@ -2844,7 +2852,6 @@ async function updateBudgetField(id, field, value){
   else if(state.main==='dashboard') renderDashboard();
 }
 function renderBudget(){
-  const plannedTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'planned',state.displayCurrency),0);
   const actualTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
   const fundsReceived = contributions.reduce((s,c)=>s+effectiveContribAmount(c,state.displayCurrency),0);
   const fundingBalance = fundsReceived - actualTotal;
@@ -2852,7 +2859,6 @@ function renderBudget(){
   const overallBudgetDisplay = toDisplayAmount(overallBudget);
   const shown = visibleBudget();
   const rows = shown.map(b=>{
-    const remaining = effectiveAmount(b,'planned',state.displayCurrency) - effectiveAmount(b,'actual',state.displayCurrency);
     const vendorName = b.vendorId ? (vendors.find(v=>v.id===b.vendorId)||{}).name : null;
     const subLabel = vendorName ? `vendor: ${vendorName}` : (b.sourceVenueName ? `from venue: ${b.sourceVenueName}` : '');
     return `<tr>
@@ -2863,14 +2869,9 @@ function renderBudget(){
           <option value="sl" ${b.country==='sl'?'selected':''}>Sri Lanka</option>
         </select></td>
       <td><div class="dual-cur">
-          <div class="amt-wrap" data-symbol="£"><input type="number" data-budgetfield="planned" data-budgetid="${b.id}" value="${b.planned||''}"></div>
-          <div class="amt-wrap" data-symbol="Rs"><input type="number" data-budgetfield="plannedLkr" data-budgetid="${b.id}" value="${b.plannedLkr||''}"></div>
-        </div></td>
-      <td><div class="dual-cur">
           <div class="amt-wrap" data-symbol="£"><input type="number" data-budgetfield="actual" data-budgetid="${b.id}" value="${b.actual||''}"></div>
           <div class="amt-wrap" data-symbol="Rs"><input type="number" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${b.actualLkr||''}"></div>
         </div></td>
-      <td class="numcell" style="font-family:'IBM Plex Mono',monospace;color:${remaining<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(remaining)}</td>
       <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
       <td><input type="text" class="cell-input" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Add a comment…"></td>
       <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
@@ -2892,17 +2893,16 @@ function renderBudget(){
         <div class="amt-wrap large" data-symbol="${currencySymbol()}"><input type="number" id="overallBudgetInput" value="${Math.round(overallBudgetDisplay)}" style="font-family:'Fraunces',serif;font-size:22px;border:none;background:none;padding:0;width:100%;color:var(--ink);"></div>
         <div class="dsub">Editable — shared, updates live for both of you</div>
       </div>
-      <div class="dcard"><div class="dlabel">Total planned</div><div class="dval">${fmtCurrencyAmount(plannedTotal)}</div><div class="dsub" style="color:${plannedTotal>overallBudgetDisplay?'var(--flag)':'var(--ink-soft)'}">${plannedTotal>overallBudgetDisplay?'Over overall budget by '+fmtCurrencyAmount(plannedTotal-overallBudgetDisplay):fmtCurrencyAmount(overallBudgetDisplay-plannedTotal)+' headroom left'}</div></div>
       <div class="dcard"><div class="dlabel">Total spent so far</div><div class="dval">${fmtCurrencyAmount(actualTotal)}</div>
         <div class="progress-track"><div class="progress-fill" style="width:${overallBudgetDisplay?Math.min(100,actualTotal/overallBudgetDisplay*100):0}%;background:${actualTotal>overallBudgetDisplay?'var(--flag)':'var(--ink)'}"></div></div></div>
-      <div class="dcard"><div class="dlabel">Remaining vs plan</div><div class="dval" style="color:${plannedTotal-actualTotal<0?'var(--flag)':'var(--ink)'}">${fmtCurrencyAmount(plannedTotal-actualTotal)}</div></div>
+      <div class="dcard"><div class="dlabel">Remaining vs overall budget</div><div class="dval" style="color:${overallBudgetDisplay-actualTotal<0?'var(--flag)':'var(--ink)'}">${fmtCurrencyAmount(overallBudgetDisplay-actualTotal)}</div></div>
       <div class="dcard"><div class="dlabel">Funds received</div><div class="dval">${fmtCurrencyAmount(fundsReceived)}</div><div class="dsub">from parents & other contributions</div></div>
       <div class="dcard"><div class="dlabel">Funding balance</div><div class="dval" style="color:${fundingBalance<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(fundingBalance)}</div><div class="dsub">received minus spent so far</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines</p>
     <div class="tablewrap"><table class="plain-table">
-      <tr><th>Category</th><th>Wedding</th><th>Planned</th><th>Actual spent</th><th>Remaining</th><th>Due date</th><th>Comments</th><th></th></tr>
-      ${rows || '<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
+      <tr><th>Category</th><th>Wedding</th><th>Actual spent</th><th>Due date</th><th>Comments</th><th></th></tr>
+      ${rows || '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
     </table></div>
     <div class="section-head" style="margin-top:30px;">
       <h2 style="font-size:19px;">Funding sources</h2>
@@ -2924,12 +2924,10 @@ function renderBudget(){
   document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: fromDisplayAmount(parseFloat(e.target.value)||0)}); renderBudget(); });
   document.getElementById('addBudgetBtn').addEventListener('click', ()=>budgetOverlay.classList.add('show'));
   document.getElementById('exportBudgetBtn').addEventListener('click', ()=>{
-    const header=['Category','Wedding','Planned (£)','Planned (Rs)','Actual (£)','Actual (Rs)',`Remaining (${currencySymbol()})`,'Comments'];
-    const totalPlannedGbp = shown.reduce((s,b)=>s+(b.planned||0),0);
-    const totalPlannedLkr = shown.reduce((s,b)=>s+(b.plannedLkr||0),0);
+    const header=['Category','Wedding','Actual (£)','Actual (Rs)','Due date','Comments'];
     const totalActualGbp = shown.reduce((s,b)=>s+(b.actual||0),0);
     const totalActualLkr = shown.reduce((s,b)=>s+(b.actualLkr||0),0);
-    const aoa=[header, ...shown.map(b=>[b.cat, ({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country], b.planned||'', b.plannedLkr||'', b.actual||'', b.actualLkr||'', effectiveAmount(b,'planned',state.displayCurrency)-effectiveAmount(b,'actual',state.displayCurrency), b.notes||'']), [], ['Total', '', totalPlannedGbp, totalPlannedLkr, totalActualGbp, totalActualLkr, plannedTotal-actualTotal, ''],
+    const aoa=[header, ...shown.map(b=>[b.cat, ({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country], b.actual||'', b.actualLkr||'', b.dueDate||'', b.notes||'']), [], ['Total', '', totalActualGbp, totalActualLkr, '', ''],
       [], ['Funding sources'], ['From','Amount (£)','Amount (Rs)','Date received','Notes'],
       ...contributions.map(c=>[c.contributor, c.amountGbp||'', c.amountLkr||'', c.dateReceived||'', c.notes||'']),
       [], ['Total received', contributions.reduce((s,c)=>s+(c.amountGbp||0),0), contributions.reduce((s,c)=>s+(c.amountLkr||0),0)]];
@@ -2988,13 +2986,11 @@ document.getElementById('saveBudget').addEventListener('click', async ()=>{
   if(!cat){ alert('Please enter a category.'); return; }
   await sb.from('budget_items').insert({
     wedding_id:weddingId, category:cat, country:document.getElementById('b_country').value,
-    planned:parseFloat(document.getElementById('b_planned').value)||0,
-    planned_lkr:parseFloat(document.getElementById('b_plannedLkr').value)||0,
     actual:parseFloat(document.getElementById('b_actual').value)||0,
     actual_lkr:parseFloat(document.getElementById('b_actualLkr').value)||0,
     notes:document.getElementById('b_notes').value.trim()
   });
-  ['b_cat','b_planned','b_plannedLkr','b_notes'].forEach(id=>document.getElementById(id).value='');
+  ['b_cat','b_notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('b_actual').value='0';
   document.getElementById('b_actualLkr').value='0';
   budgetOverlay.classList.remove('show');
@@ -3002,9 +2998,9 @@ document.getElementById('saveBudget').addEventListener('click', async ()=>{
 });
 
 /* ================= VENDORS TAB ================= */
-function dueDateBadge(dateStr, remaining){
-  if(!dateStr) return remaining<=0 ? `<span class="badge sourced" style="margin:0;">Paid</span>` : '';
-  if(remaining<=0) return `<span class="badge sourced" style="margin:0;">Paid</span>`;
+function dueDateBadge(dateStr, actualAmount){
+  if(actualAmount>0) return `<span class="badge sourced" style="margin:0;">Paid</span>`;
+  if(!dateStr) return '';
   const today = todayStr();
   if(dateStr < today) return `<span class="badge pending" style="margin:0;">Overdue · ${dateStr}</span>`;
   const soon = new Date(); soon.setDate(soon.getDate()+14);
@@ -3020,10 +3016,7 @@ function vendorPayments(vendorId){
   });
 }
 function vendorNextDue(vendorId){
-  const outstanding = vendorPayments(vendorId).filter(b=>{
-    const remaining = effectiveAmount(b,'planned',state.displayCurrency) - effectiveAmount(b,'actual',state.displayCurrency);
-    return b.dueDate && remaining>0;
-  });
+  const outstanding = vendorPayments(vendorId).filter(b=>b.dueDate && effectiveAmount(b,'actual',state.displayCurrency)<=0);
   return outstanding.length ? outstanding[0].dueDate : null;
 }
 function visibleVendors(){
@@ -3045,31 +3038,25 @@ async function updateVendorField(id, field, value){
 async function addVendorPayment(vendorId){
   const v = vendors.find(x=>x.id===vendorId);
   if(!v) return;
-  await sb.from('budget_items').insert({wedding_id:weddingId, category:v.category||v.name, country:v.country||'shared', vendor_id:vendorId, planned:0, actual:0, planned_lkr:0, actual_lkr:0});
+  await sb.from('budget_items').insert({wedding_id:weddingId, category:v.category||v.name, country:v.country||'shared', vendor_id:vendorId, actual:0, actual_lkr:0});
   await loadBudget(); renderVendors();
 }
 function renderVendors(){
   const shown = visibleVendors();
   const cards = shown.map(v=>{
     const payments = vendorPayments(v.id);
-    const planned = payments.reduce((s,b)=>s+effectiveAmount(b,'planned',state.displayCurrency),0);
     const actual = payments.reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
     const nextDue = vendorNextDue(v.id);
     const paymentRows = payments.map(b=>{
-      const remaining = effectiveAmount(b,'planned',state.displayCurrency) - effectiveAmount(b,'actual',state.displayCurrency);
+      const paidAmount = effectiveAmount(b,'actual',state.displayCurrency);
       return `<tr>
         <td><input type="text" class="cell-input" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}" placeholder="e.g. Deposit"></td>
         <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
         <td><div class="dual-cur">
-            <div class="amt-wrap" data-symbol="£"><input type="number" data-budgetfield="planned" data-budgetid="${b.id}" value="${b.planned||''}"></div>
-            <div class="amt-wrap" data-symbol="Rs"><input type="number" data-budgetfield="plannedLkr" data-budgetid="${b.id}" value="${b.plannedLkr||''}"></div>
-          </div></td>
-        <td><div class="dual-cur">
             <div class="amt-wrap" data-symbol="£"><input type="number" data-budgetfield="actual" data-budgetid="${b.id}" value="${b.actual||''}"></div>
             <div class="amt-wrap" data-symbol="Rs"><input type="number" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${b.actualLkr||''}"></div>
           </div></td>
-        <td class="numcell" style="color:${remaining<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(remaining)}</td>
-        <td>${dueDateBadge(b.dueDate, remaining)}</td>
+        <td>${dueDateBadge(b.dueDate, paidAmount)}</td>
         <td><input type="text" class="cell-input" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Comment…"></td>
         <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
       </tr>`;
@@ -3089,8 +3076,8 @@ function renderVendors(){
         </div>
         <div style="text-align:right;">
           <div style="font-family:'Fraunces',serif;font-size:18px;">${fmtCurrencyAmount(actual)}</div>
-          <div style="font-size:11px;color:var(--ink-soft);">of ${fmtCurrencyAmount(planned)} planned</div>
-          ${nextDue ? `<div style="margin-top:4px;">${dueDateBadge(nextDue, 1)}</div>` : ''}
+          <div style="font-size:11px;color:var(--ink-soft);">total paid</div>
+          ${nextDue ? `<div style="margin-top:4px;">${dueDateBadge(nextDue, 0)}</div>` : ''}
         </div>
         <button class="rmbtn" data-rmvendor="${v.id}">Delete vendor</button>
       </div>
@@ -3100,7 +3087,7 @@ function renderVendors(){
       </div>
       <input type="text" class="cell-input" data-vendorfield="notes" data-vendorid="${v.id}" value="${escAttr(v.notes)}" placeholder="Notes" style="width:100%;margin-top:8px;">
       ${payments.length ? `<div class="tablewrap" style="margin-top:14px;"><table class="plain-table">
-        <tr><th>Payment</th><th>Due date</th><th>Planned</th><th>Actual</th><th>Remaining</th><th>Status</th><th>Comments</th><th></th></tr>
+        <tr><th>Payment</th><th>Due date</th><th>Actual</th><th>Status</th><th>Comments</th><th></th></tr>
         ${paymentRows}
       </table></div>` : '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:12px;">No payments logged yet.</p>'}
       <button class="btn ghost small" data-addpayment="${v.id}" style="margin-top:12px;width:auto;">+ Add payment</button>
