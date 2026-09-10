@@ -335,6 +335,10 @@ select.attend-maybe{background-color:var(--paper);}
 .tag.p2{background:var(--sl-soft);color:#6B4E15;}
 .tag.both{background:var(--info-soft);color:var(--info);}
 .rmbtn{background:none;border:none;color:var(--flag);font-size:12px;font-weight:700;width:auto;}
+.reorder-btns{display:flex;flex-direction:column;gap:1px;}
+.reorder-btn{width:18px;height:14px;padding:0;border:1px solid var(--line);background:var(--paper-raised);color:var(--ink-soft);font-size:8px;line-height:1;cursor:pointer;border-radius:3px;}
+.reorder-btn:hover:not(:disabled){color:var(--ink);border-color:var(--ink-soft);}
+.reorder-btn:disabled{opacity:.35;cursor:default;}
 
 .amt-wrap{position:relative;display:inline-block;width:100%;}
 .amt-wrap::before{content:attr(data-symbol);position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:13px;pointer-events:none;}
@@ -1207,8 +1211,8 @@ async function loadBudget(){
   budgetItems = (data||[]).map(b=>({id:b.id, cat:b.category, country:b.country, planned:+b.planned||0, actual:+b.actual||0, plannedLkr:+b.planned_lkr||0, actualLkr:+b.actual_lkr||0, paid:!!b.paid, notes:b.notes||'', vendorId:b.vendor_id||null, dueDate:b.due_date||null, sourceVenueId:b.source_venue_id||null, sourceVenueName:b.source_venue_name||null}));
 }
 async function loadVendors(){
-  const { data } = await sb.from('vendors').select('*').eq('wedding_id', weddingId).order('created_at');
-  vendors = (data||[]).map(v=>({id:v.id, name:v.name, category:v.category||'', country:v.country||'shared', contactName:v.contact_name||'', contactInfo:v.contact_info||'', notes:v.notes||'', totalCostGbp:+v.total_cost_gbp||0, totalCostLkr:+v.total_cost_lkr||0, sourceVenueId:v.source_venue_id||null}));
+  const { data } = await sb.from('vendors').select('*').eq('wedding_id', weddingId).order('sort_order').order('created_at');
+  vendors = (data||[]).map(v=>({id:v.id, name:v.name, category:v.category||'', country:v.country||'shared', contactName:v.contact_name||'', contactInfo:v.contact_info||'', notes:v.notes||'', totalCostGbp:+v.total_cost_gbp||0, totalCostLkr:+v.total_cost_lkr||0, sortOrder:v.sort_order||0, sourceVenueId:v.source_venue_id||null}));
 }
 async function loadContributions(){
   const { data } = await sb.from('contributions').select('*').eq('wedding_id', weddingId).order('created_at');
@@ -2894,15 +2898,8 @@ function renderBudget(){
     return `<tr>
       <td><input type="text" class="cell-input cell-input-wide" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}"></td>
       <td><select class="cell-input cell-input-wide" data-field="vendorId" data-budgetid="${b.id}">${vendorOptionsHTML}</select>${!b.vendorId && b.sourceVenueName ? `<div style="font-size:10px;color:var(--ink-soft);margin-top:2px;">from venue: ${b.sourceVenueName}</div>` : ''}</td>
-      <td><select class="cell-input" data-field="country" data-budgetid="${b.id}">
-          <option value="shared" ${b.country==='shared'?'selected':''}>Shared</option>
-          <option value="uk" ${b.country==='uk'?'selected':''}>UK</option>
-          <option value="sl" ${b.country==='sl'?'selected':''}>Sri Lanka</option>
-        </select></td>
-      <td><div class="dual-cur">
-          <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div>
-          <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div>
-        </div></td>
+      <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div></td>
+      <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div></td>
       <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
       <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
       <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Add a comment…"></td>
@@ -2914,7 +2911,6 @@ function renderBudget(){
       <h2 style="font-size:22px;">Budget tracker</h2>
       <div class="searchbox"><input id="budgetSearch" placeholder="Search category…" value="${state.budgetSearch}"></div>
       <div style="display:flex;gap:8px;">
-        <select class="btn ghost small" id="bf_country" style="border-color:var(--line);width:auto;"><option value="">All</option><option value="uk" ${state.budgetFilters.country==='uk'?'selected':''}>UK</option><option value="sl" ${state.budgetFilters.country==='sl'?'selected':''}>Sri Lanka</option><option value="shared" ${state.budgetFilters.country==='shared'?'selected':''}>Shared</option></select>
         <button class="btn" id="addBudgetBtn" style="width:auto;">+ Add line</button>
         <button class="btn export" id="exportBudgetBtn" style="width:auto;">⬇ Excel</button>
       </div>
@@ -2934,7 +2930,7 @@ function renderBudget(){
     </div>
     <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines</p>
     <div class="tablewrap"><table class="plain-table">
-      <tr><th>Category</th><th>Vendor</th><th>Wedding</th><th>Amount</th><th>Paid</th><th>Due date</th><th>Comments</th><th></th></tr>
+      <tr><th>Category</th><th>Vendor</th><th>Amount GBP</th><th>Amount LKR</th><th>Paid</th><th>Due date</th><th>Comments</th><th></th></tr>
       ${rows || '<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
     </table></div>
     <div class="section-head" style="margin-top:30px;">
@@ -2942,17 +2938,15 @@ function renderBudget(){
       <button class="btn ghost small" id="addContributionBtn" style="width:auto;">+ Add contribution</button>
     </div>
     <div class="tablewrap"><table class="plain-table">
-      <tr><th>From</th><th>Amount</th><th>Date received</th><th>Notes</th><th></th></tr>
+      <tr><th>From</th><th>Amount GBP</th><th>Amount LKR</th><th>Date received</th><th>Notes</th><th></th></tr>
       ${contributions.map(c=>`<tr>
         <td><input type="text" class="cell-input cell-input-wide" data-ctfield="contributor" data-ctid="${c.id}" value="${escAttr(c.contributor)}"></td>
-        <td><div class="dual-cur">
-            <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountGbp" data-ctid="${c.id}" value="${formatNumInput(c.amountGbp)}"></div>
-            <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountLkr" data-ctid="${c.id}" value="${formatNumInput(c.amountLkr)}"></div>
-          </div></td>
+        <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountGbp" data-ctid="${c.id}" value="${formatNumInput(c.amountGbp)}"></div></td>
+        <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountLkr" data-ctid="${c.id}" value="${formatNumInput(c.amountLkr)}"></div></td>
         <td><input type="date" class="cell-input" data-ctfield="dateReceived" data-ctid="${c.id}" value="${c.dateReceived||''}"></td>
         <td><input type="text" class="cell-input cell-input-wide" data-ctfield="notes" data-ctid="${c.id}" value="${escAttr(c.notes||'')}" placeholder="Add a note…"></td>
         <td><button class="rmbtn" data-rmcontrib="${c.id}">Remove</button></td>
-      </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:24px;">No contributions logged yet.</td></tr>'}
+      </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:24px;">No contributions logged yet.</td></tr>'}
     </table></div>`;
   document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: fromDisplayAmount(parseNumInput(e.target.value))}); renderBudget(); });
   document.getElementById('addBudgetBtn').addEventListener('click', ()=>budgetOverlay.classList.add('show'));
@@ -2967,7 +2961,6 @@ function renderBudget(){
     exportRowsToExcel('wedding-budget.xlsx','Budget',aoa);
   });
   document.getElementById('budgetSearch').addEventListener('input', e=>{ state.budgetSearch=e.target.value; renderBudget(); });
-  document.getElementById('bf_country').addEventListener('change', e=>{ state.budgetFilters.country=e.target.value; renderBudget(); });
   document.getElementById('addContributionBtn').addEventListener('click', ()=>contributionOverlay.classList.add('show'));
   const budgetTabEl = document.getElementById('tab-budget');
   budgetTabEl.querySelectorAll('[data-field][data-budgetid]').forEach(el=>el.addEventListener('change', ()=>{
@@ -3038,14 +3031,20 @@ document.getElementById('saveBudget').addEventListener('click', async ()=>{
 });
 
 /* ================= VENDORS TAB ================= */
+function formatDateDMY(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
 function dueDateBadge(dateStr, paid){
   if(paid) return `<span class="badge sourced" style="margin:0;">Paid</span>`;
   if(!dateStr) return '';
   const today = todayStr();
-  if(dateStr < today) return `<span class="badge pending" style="margin:0;">Overdue · ${dateStr}</span>`;
+  const dmy = formatDateDMY(dateStr);
+  if(dateStr < today) return `<span class="badge pending" style="margin:0;">Overdue · ${dmy}</span>`;
   const soon = new Date(); soon.setDate(soon.getDate()+14);
-  if(new Date(dateStr) <= soon) return `<span class="badge needsresearch" style="margin:0;">Due soon · ${dateStr}</span>`;
-  return `<span class="badge estimated" style="margin:0;">Due ${dateStr}</span>`;
+  if(new Date(dateStr) <= soon) return `<span class="badge needsresearch" style="margin:0;">Due soon · ${dmy}</span>`;
+  return `<span class="badge estimated" style="margin:0;">Due ${dmy}</span>`;
 }
 function vendorPayments(vendorId){
   return budgetItems.filter(b=>b.vendorId===vendorId).slice().sort((a,b)=>{
@@ -3060,13 +3059,19 @@ function vendorNextDue(vendorId){
   return outstanding.length ? outstanding[0].dueDate : null;
 }
 function visibleVendors(){
-  return vendors.filter(v=>!state.vendorSearch || v.name.toLowerCase().includes(state.vendorSearch.toLowerCase())).slice().sort((a,b)=>{
-    const da = vendorNextDue(a.id), db = vendorNextDue(b.id);
-    if(!da && !db) return a.name.localeCompare(b.name);
-    if(!da) return 1;
-    if(!db) return -1;
-    return da.localeCompare(db);
-  });
+  return vendors.filter(v=>!state.vendorSearch || v.name.toLowerCase().includes(state.vendorSearch.toLowerCase())).slice().sort((a,b)=>a.sortOrder-b.sortOrder);
+}
+async function moveVendor(id, dir){
+  const shown = visibleVendors();
+  const idx = shown.findIndex(v=>v.id===id);
+  const swapIdx = idx + dir;
+  if(idx<0 || swapIdx<0 || swapIdx>=shown.length) return;
+  const a = shown[idx], b = shown[swapIdx];
+  await Promise.all([
+    sb.from('vendors').update({sort_order:b.sortOrder}).eq('id', a.id),
+    sb.from('vendors').update({sort_order:a.sortOrder}).eq('id', b.id)
+  ]);
+  await loadVendors(); renderVendors();
 }
 const VENDOR_FIELD_DB_MAP = {name:'name', category:'category', country:'country', contactName:'contact_name', contactInfo:'contact_info', notes:'notes', totalCostGbp:'total_cost_gbp', totalCostLkr:'total_cost_lkr'};
 async function updateVendorField(id, field, value){
@@ -3085,7 +3090,7 @@ async function addVendorPayment(vendorId){
 }
 function renderVendors(){
   const shown = visibleVendors();
-  const cards = shown.map(v=>{
+  const cards = shown.map((v,idx)=>{
     const payments = vendorPayments(v.id);
     const totalCost = vendorTotalCostDisplay(v, state.displayCurrency);
     const accountedFor = payments.reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
@@ -3096,10 +3101,8 @@ function renderVendors(){
       return `<tr>
         <td><input type="text" class="cell-input cell-input-wide" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}" placeholder="e.g. Deposit" list="paymentTagSuggestions"></td>
         <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
-        <td><div class="dual-cur">
-            <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div>
-            <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div>
-          </div></td>
+        <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div></td>
+        <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div></td>
         <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
         <td>${dueDateBadge(b.dueDate, b.paid)}</td>
         <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Comment…"></td>
@@ -3109,18 +3112,28 @@ function renderVendors(){
     return `<div class="info-card" data-vendorid="${v.id}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
         <div style="flex:1;min-width:200px;">
-          <input type="text" class="cell-input" data-vendorfield="name" data-vendorid="${v.id}" value="${escAttr(v.name)}" style="font-family:'Fraunces',serif;font-size:17px;font-weight:600;border:none;background:none;padding:2px 0;width:100%;">
-          <div style="margin-top:6px;max-width:220px;">
-            <input type="text" class="cell-input" data-vendorfield="category" data-vendorid="${v.id}" value="${escAttr(v.category)}" placeholder="Category">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="reorder-btns">
+              <button type="button" class="reorder-btn" data-movevendor="${v.id}" data-dir="-1" ${idx===0?'disabled':''} title="Move up">▲</button>
+              <button type="button" class="reorder-btn" data-movevendor="${v.id}" data-dir="1" ${idx===shown.length-1?'disabled':''} title="Move down">▼</button>
+            </div>
+            <input type="text" class="cell-input" data-vendorfield="name" data-vendorid="${v.id}" value="${escAttr(v.name)}" style="font-family:'Fraunces',serif;font-size:17px;font-weight:600;border:none;background:none;padding:2px 0;flex:1;">
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap;">
+            <div style="max-width:220px;">
+              <input type="text" class="cell-input" data-vendorfield="category" data-vendorid="${v.id}" value="${escAttr(v.category)}" placeholder="Category">
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Total cost</div>
+              <div class="dual-cur">
+                <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostGbp" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostGbp)}"></div>
+                <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostLkr" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostLkr)}"></div>
+              </div>
+            </div>
           </div>
         </div>
-        <div style="text-align:right;min-width:220px;">
-          <div style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Total cost</div>
-          <div class="dual-cur" style="justify-content:flex-end;">
-            <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostGbp" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostGbp)}"></div>
-            <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostLkr" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostLkr)}"></div>
-          </div>
-          <div style="font-size:11px;color:var(--ink-soft);margin-top:6px;">${fmtCurrencyAmount(paidSoFar)} paid</div>
+        <div style="text-align:right;min-width:180px;">
+          <div style="font-size:11px;color:var(--ink-soft);">${fmtCurrencyAmount(paidSoFar)} paid</div>
           ${totalCost>0 && Math.abs(unaccounted)>1 ? `<div style="font-size:10.5px;color:var(--flag);margin-top:2px;">${unaccounted>0?fmtCurrencyAmount(unaccounted)+' not yet scheduled':fmtCurrencyAmount(-unaccounted)+' over total cost'}</div>` : ''}
           ${nextDue ? `<div style="margin-top:4px;">${dueDateBadge(nextDue, false)}</div>` : ''}
         </div>
@@ -3132,7 +3145,7 @@ function renderVendors(){
       </div>
       <input type="text" class="cell-input" data-vendorfield="notes" data-vendorid="${v.id}" value="${escAttr(v.notes)}" placeholder="Notes" style="width:100%;margin-top:8px;">
       ${payments.length ? `<div class="tablewrap" style="margin-top:14px;"><table class="plain-table">
-        <tr><th>Tag</th><th>Due date</th><th>Amount</th><th>Paid</th><th>Status</th><th>Comments</th><th></th></tr>
+        <tr><th>Tag</th><th>Due date</th><th>Amount GBP</th><th>Amount LKR</th><th>Paid</th><th>Status</th><th>Comments</th><th></th></tr>
         ${paymentRows}
       </table></div>` : '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:12px;">No payments logged yet.</p>'}
       <button class="btn ghost small" data-addpayment="${v.id}" style="margin-top:12px;width:auto;">+ Add payment</button>
@@ -3144,12 +3157,15 @@ function renderVendors(){
       <div class="searchbox"><input id="vendorSearch" placeholder="Search vendor name…" value="${state.vendorSearch}"></div>
       <button class="btn" id="addVendorBtn" style="width:auto;">+ Add vendor</button>
     </div>
-    <p class="result-count">Showing ${shown.length} of ${vendors.length} vendors — sorted by nearest payment due</p>
+    <p class="result-count">Showing ${shown.length} of ${vendors.length} vendors — use ▲▼ to reorder</p>
     ${cards || '<div class="empty">No vendors added yet.</div>'}
     <datalist id="paymentTagSuggestions">
       <option value="Deposit"><option value="Balance"><option value="Final payment">
     </datalist>
   `;
+  document.querySelectorAll('[data-movevendor]').forEach(btn=>btn.addEventListener('click', ()=>{
+    moveVendor(btn.dataset.movevendor, +btn.dataset.dir);
+  }));
   document.getElementById('addVendorBtn').addEventListener('click', ()=>vendorOverlay.classList.add('show'));
   document.getElementById('vendorSearch').addEventListener('input', e=>{ state.vendorSearch=e.target.value; renderVendors(); });
   const vendorsTabEl = document.getElementById('tab-vendors');
@@ -3183,13 +3199,15 @@ document.getElementById('cancelVendor').addEventListener('click', ()=>vendorOver
 document.getElementById('saveVendor').addEventListener('click', async ()=>{
   const name = document.getElementById('vd_name').value.trim();
   if(!name){ alert('Please enter a vendor name.'); return; }
+  const maxSortOrder = vendors.reduce((m,v)=>Math.max(m,v.sortOrder||0),0);
   await sb.from('vendors').insert({
     wedding_id:weddingId, name,
     category:document.getElementById('vd_category').value.trim(),
     country:'sl',
     contact_name:document.getElementById('vd_contactName').value.trim(),
     contact_info:document.getElementById('vd_contactInfo').value.trim(),
-    notes:document.getElementById('vd_notes').value.trim()
+    notes:document.getElementById('vd_notes').value.trim(),
+    sort_order: maxSortOrder+1
   });
   ['vd_name','vd_category','vd_contactName','vd_contactInfo','vd_notes'].forEach(id=>document.getElementById(id).value='');
   vendorOverlay.classList.remove('show');
