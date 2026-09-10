@@ -332,10 +332,13 @@ select.attend-maybe{background-color:var(--paper);}
 .rmbtn{background:none;border:none;color:var(--flag);font-size:12px;font-weight:700;width:auto;}
 
 .amt-wrap{position:relative;display:inline-block;width:100%;}
-.amt-wrap::before{content:'£';position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:13px;pointer-events:none;}
-.amt-wrap input{padding-left:22px !important;}
+.amt-wrap::before{content:attr(data-symbol);position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:13px;pointer-events:none;}
+.amt-wrap input{padding-left:26px !important;}
 .amt-wrap.large::before{font-size:20px;left:0;color:var(--ink);}
-.amt-wrap.large input{padding-left:20px !important;}
+.amt-wrap.large input{padding-left:26px !important;}
+.dual-cur{display:flex;gap:5px;}
+.dual-cur .amt-wrap{flex:1;min-width:0;}
+.dual-cur input{width:100%;}
 
 .checklist-group{margin-bottom:26px;}
 .checklist-group h3{font-size:16px;margin-bottom:4px;}
@@ -681,11 +684,19 @@ select.attend-maybe{background-color:var(--paper);}
   <div class="modal">
     <h2>Add budget line</h2>
     <div class="form-row"><label>Category</label><input id="b_cat" placeholder="e.g. Photography"></div>
-    <div class="form-grid2">
-      <div class="form-row"><label>Which wedding?</label><select id="b_country"><option value="shared">Shared / both</option><option value="uk">UK</option><option value="sl">Sri Lanka</option></select></div>
-      <div class="form-row"><label data-curlabel="Planned">Planned (£)</label><div class="amt-wrap"><input id="b_planned" type="number"></div></div>
+    <div class="form-row"><label>Which wedding?</label><select id="b_country"><option value="shared">Shared / both</option><option value="uk">UK</option><option value="sl">Sri Lanka</option></select></div>
+    <div class="form-row"><label>Planned</label>
+      <div class="dual-cur">
+        <div class="amt-wrap" data-symbol="£"><input id="b_planned" type="number"></div>
+        <div class="amt-wrap" data-symbol="Rs"><input id="b_plannedLkr" type="number"></div>
+      </div>
     </div>
-    <div class="form-row"><label data-curlabel="Actual spent so far">Actual spent so far (£)</label><div class="amt-wrap"><input id="b_actual" type="number" value="0"></div></div>
+    <div class="form-row"><label>Actual spent so far</label>
+      <div class="dual-cur">
+        <div class="amt-wrap" data-symbol="£"><input id="b_actual" type="number" value="0"></div>
+        <div class="amt-wrap" data-symbol="Rs"><input id="b_actualLkr" type="number" value="0"></div>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn ghost" id="cancelBudget">Cancel</button>
       <button class="btn" id="saveBudget">Add line</button>
@@ -956,7 +967,17 @@ function fromDisplayAmount(amount){ return state.displayCurrency==='lkr' ? (amou
 function currencySymbol(){ return state.displayCurrency==='lkr' ? 'Rs' : '£'; }
 function syncCurrencyToggleUI(){
   document.querySelectorAll('#currencyToggle [data-currency]').forEach(b=>b.classList.toggle('active', b.dataset.currency===state.displayCurrency));
-  document.querySelectorAll('[data-curlabel]').forEach(el=>{ el.textContent = `${el.dataset.curlabel} (${currencySymbol()})`; });
+}
+function fmtCurrencyAmount(amount, currency){
+  currency = currency || state.displayCurrency;
+  if(currency==='lkr') return 'Rs ' + Math.round(amount||0).toLocaleString('en-US');
+  return '£' + Math.round(amount||0).toLocaleString('en-GB');
+}
+function effectiveAmount(item, field, currency){
+  const gbpVal = item[field];
+  const lkrVal = item[field+'Lkr'];
+  if(currency==='lkr') return lkrVal ? lkrVal : (gbpVal||0)*LKR_PER_GBP;
+  return gbpVal ? gbpVal : (lkrVal||0)/LKR_PER_GBP;
 }
 document.querySelectorAll('#currencyToggle [data-currency]').forEach(btn=>btn.addEventListener('click', ()=>{
   const c = btn.dataset.currency;
@@ -1131,7 +1152,7 @@ async function loadGuests(){
 }
 async function loadBudget(){
   const { data } = await sb.from('budget_items').select('*').eq('wedding_id', weddingId).order('created_at');
-  budgetItems = (data||[]).map(b=>({id:b.id, cat:b.category, country:b.country, planned:+b.planned||0, actual:+b.actual||0, sourceVenueId:b.source_venue_id||null, sourceVenueName:b.source_venue_name||null}));
+  budgetItems = (data||[]).map(b=>({id:b.id, cat:b.category, country:b.country, planned:+b.planned||0, actual:+b.actual||0, plannedLkr:+b.planned_lkr||0, actualLkr:+b.actual_lkr||0, sourceVenueId:b.source_venue_id||null, sourceVenueName:b.source_venue_name||null}));
 }
 async function loadChecklist(){
   const { data } = await sb.from('checklist_items').select('*').eq('wedding_id', weddingId).order('created_at');
@@ -1544,8 +1565,8 @@ function renderDashboard(){
   const noG = guests.filter(g=>g.attend==='no').length;
   const confirmedG = guests.filter(g=>g.confirmed).length;
   const totalG = guests.length;
-  const plannedTotal = budgetItems.reduce((s,b)=>s+(+b.planned||0),0);
-  const actualTotal = budgetItems.reduce((s,b)=>s+(+b.actual||0),0);
+  const plannedTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'planned',state.displayCurrency),0);
+  const actualTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
   const doneTasks = checklist.filter(t=>t.done).length;
   const clPct = checklist.length ? Math.round(doneTasks/checklist.length*100) : 0;
   const nonFlaggedUk = venues.filter(v=>v.country==='uk');
@@ -1554,7 +1575,7 @@ function renderDashboard(){
   const topSl = [...nonFlaggedSl].sort((a,b)=>(b.claude||0)-(a.claude||0))[0];
   const needsResearch = venues.filter(v=>isStub(v)).length;
   const bookedVenue = venues.find(v=>v.booked);
-  const overallBudget = wedding.overall_budget || 0;
+  const overallBudget = toDisplayAmount(wedding.overall_budget || 0);
   const today = todayStr();
   const upcoming = [...calendarEvents].filter(e=>!e.done).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
 
@@ -1564,7 +1585,7 @@ function renderDashboard(){
       <div class="dcard ${bookedVenue?'clickable':''}" ${bookedVenue?`data-goto="venues" data-venueid="${bookedVenue.id}"`:''}><div class="dlabel">Booked venue</div><div class="dval" style="font-size:19px;">${bookedVenue?bookedVenue.name:'Not booked yet'}</div><div class="dsub">${bookedVenue?`${fmt((bookedVenue.bookedHire||0)+(bookedVenue.bookedCat||0)+(bookedVenue.bookedExt||0))} frozen at booking · ${bookedVenue.bookedGuests||'–'} guests — click to view`:'Star favourites in the Venues tab, then book when ready'}</div></div>
       <div class="dcard clickable" data-goto="guests"><div class="dlabel">Guest list</div><div class="dval">${totalG}</div><div class="dsub">${yesG} likely yes · ${maybeG} maybe · ${noG} no</div></div>
       <div class="dcard clickable" data-goto="guests"><div class="dlabel">Confirmed attendance</div><div class="dval">${confirmedG}</div><div class="dsub">of ${totalG} guests — click to review</div></div>
-      <div class="dcard clickable" data-goto="budget"><div class="dlabel">Budget planned vs spent</div><div class="dval">${fmt(actualTotal)}</div><div class="dsub">of ${fmt(plannedTotal)} planned · ${fmt(overallBudget)} overall budget</div>
+      <div class="dcard clickable" data-goto="budget"><div class="dlabel">Budget planned vs spent</div><div class="dval">${fmtCurrencyAmount(actualTotal)}</div><div class="dsub">of ${fmtCurrencyAmount(plannedTotal)} planned · ${fmtCurrencyAmount(overallBudget)} overall budget</div>
         <div class="progress-track"><div class="progress-fill" style="width:${plannedTotal?Math.min(100,actualTotal/plannedTotal*100):0}%"></div></div></div>
       <div class="dcard clickable" data-goto="checklist"><div class="dlabel">Checklist progress</div><div class="dval">${clPct}%</div><div class="dsub">${doneTasks} of ${checklist.length} tasks done</div>
         <div class="progress-track"><div class="progress-fill" style="width:${clPct}%"></div></div></div>
@@ -2295,7 +2316,7 @@ function renderItemEditor(scopeId, key){
     ${items.map((it,i)=>`
       <div class="item-editor-row" data-idx="${i}">
         <input type="text" class="it-label" placeholder="e.g. Room hire" value="${(it.label||'').replace(/"/g,'&quot;')}">
-        <div class="amt-wrap"><input type="number" class="it-amount" value="${it.amount||''}"></div>
+        <div class="amt-wrap" data-symbol="£"><input type="number" class="it-amount" value="${it.amount||''}"></div>
         <button type="button" class="rm-item-row" data-rmitem="${key}:${i}">✕</button>
       </div>`).join('')}
     <button type="button" class="item-add-btn" data-additem="${key}">+ Add line item</button>`;
@@ -2748,19 +2769,40 @@ function visibleBudget(){
     return true;
   });
 }
+const BUDGET_FIELD_DB_MAP = {cat:'category', country:'country', planned:'planned', plannedLkr:'planned_lkr', actual:'actual', actualLkr:'actual_lkr'};
+async function updateBudgetField(id, field, value){
+  const dbField = BUDGET_FIELD_DB_MAP[field];
+  if(!dbField) return;
+  await sb.from('budget_items').update({[dbField]: value}).eq('id', id);
+  await loadBudget(); renderBudget();
+}
 function renderBudget(){
-  const plannedTotal = budgetItems.reduce((s,b)=>s+(+b.planned||0),0);
-  const actualTotal = budgetItems.reduce((s,b)=>s+(+b.actual||0),0);
+  const plannedTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'planned',state.displayCurrency),0);
+  const actualTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
   const overallBudget = wedding.overall_budget || 0;
+  const overallBudgetDisplay = toDisplayAmount(overallBudget);
   const shown = visibleBudget();
-  const rows = shown.map(b=>`<tr>
-      <td>${b.cat}${b.sourceVenueName ? `<div style="font-size:10.5px;color:var(--ink-soft);margin-top:2px;">from venue: ${b.sourceVenueName}</div>` : ''}</td>
-      <td><span class="tag ${b.country==='uk'?'p1':(b.country==='sl'?'p2':'both')}">${({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country]}</span></td>
-      <td class="numcell" style="font-family:'IBM Plex Mono',monospace;">${fmt(b.planned)}</td>
-      <td><div class="amt-wrap"><input type="number" data-actual="${b.id}" value="${Math.round(toDisplayAmount(b.actual))}" style="max-width:110px;"></div></td>
-      <td class="numcell" style="font-family:'IBM Plex Mono',monospace;color:${b.actual>b.planned?'var(--flag)':'var(--win)'}">${fmt(b.planned-b.actual)}</td>
+  const rows = shown.map(b=>{
+    const remaining = effectiveAmount(b,'planned',state.displayCurrency) - effectiveAmount(b,'actual',state.displayCurrency);
+    return `<tr>
+      <td><input type="text" class="cell-input" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}">${b.sourceVenueName ? `<div style="font-size:10px;color:var(--ink-soft);margin-top:2px;">from venue: ${b.sourceVenueName}</div>` : ''}</td>
+      <td><select class="cell-input" data-field="country" data-budgetid="${b.id}">
+          <option value="shared" ${b.country==='shared'?'selected':''}>Shared</option>
+          <option value="uk" ${b.country==='uk'?'selected':''}>UK</option>
+          <option value="sl" ${b.country==='sl'?'selected':''}>Sri Lanka</option>
+        </select></td>
+      <td><div class="dual-cur">
+          <div class="amt-wrap" data-symbol="£"><input type="number" data-budgetfield="planned" data-budgetid="${b.id}" value="${b.planned||''}"></div>
+          <div class="amt-wrap" data-symbol="Rs"><input type="number" data-budgetfield="plannedLkr" data-budgetid="${b.id}" value="${b.plannedLkr||''}"></div>
+        </div></td>
+      <td><div class="dual-cur">
+          <div class="amt-wrap" data-symbol="£"><input type="number" data-budgetfield="actual" data-budgetid="${b.id}" value="${b.actual||''}"></div>
+          <div class="amt-wrap" data-symbol="Rs"><input type="number" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${b.actualLkr||''}"></div>
+        </div></td>
+      <td class="numcell" style="font-family:'IBM Plex Mono',monospace;color:${remaining<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(remaining)}</td>
       <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   document.getElementById('tab-budget').innerHTML = `
     <div class="section-head">
       <h2 style="font-size:22px;">Budget tracker</h2>
@@ -2774,31 +2816,37 @@ function renderBudget(){
     <div class="dcards">
       <div class="dcard">
         <div class="dlabel">Overall wedding budget (${currencySymbol()})</div>
-        <div class="amt-wrap large"><input type="number" id="overallBudgetInput" value="${Math.round(toDisplayAmount(overallBudget))}" style="font-family:'Fraunces',serif;font-size:22px;border:none;background:none;padding:0;width:100%;color:var(--ink);"></div>
+        <div class="amt-wrap large" data-symbol="${currencySymbol()}"><input type="number" id="overallBudgetInput" value="${Math.round(overallBudgetDisplay)}" style="font-family:'Fraunces',serif;font-size:22px;border:none;background:none;padding:0;width:100%;color:var(--ink);"></div>
         <div class="dsub">Editable — shared, updates live for both of you</div>
       </div>
-      <div class="dcard"><div class="dlabel">Total planned</div><div class="dval">${fmt(plannedTotal)}</div><div class="dsub" style="color:${plannedTotal>overallBudget?'var(--flag)':'var(--ink-soft)'}">${plannedTotal>overallBudget?'Over overall budget by '+fmt(plannedTotal-overallBudget):fmt(overallBudget-plannedTotal)+' headroom left'}</div></div>
-      <div class="dcard"><div class="dlabel">Total spent so far</div><div class="dval">${fmt(actualTotal)}</div>
-        <div class="progress-track"><div class="progress-fill" style="width:${overallBudget?Math.min(100,actualTotal/overallBudget*100):0}%;background:${actualTotal>overallBudget?'var(--flag)':'var(--ink)'}"></div></div></div>
-      <div class="dcard"><div class="dlabel">Remaining vs plan</div><div class="dval" style="color:${plannedTotal-actualTotal<0?'var(--flag)':'var(--ink)'}">${fmt(plannedTotal-actualTotal)}</div></div>
+      <div class="dcard"><div class="dlabel">Total planned</div><div class="dval">${fmtCurrencyAmount(plannedTotal)}</div><div class="dsub" style="color:${plannedTotal>overallBudgetDisplay?'var(--flag)':'var(--ink-soft)'}">${plannedTotal>overallBudgetDisplay?'Over overall budget by '+fmtCurrencyAmount(plannedTotal-overallBudgetDisplay):fmtCurrencyAmount(overallBudgetDisplay-plannedTotal)+' headroom left'}</div></div>
+      <div class="dcard"><div class="dlabel">Total spent so far</div><div class="dval">${fmtCurrencyAmount(actualTotal)}</div>
+        <div class="progress-track"><div class="progress-fill" style="width:${overallBudgetDisplay?Math.min(100,actualTotal/overallBudgetDisplay*100):0}%;background:${actualTotal>overallBudgetDisplay?'var(--flag)':'var(--ink)'}"></div></div></div>
+      <div class="dcard"><div class="dlabel">Remaining vs plan</div><div class="dval" style="color:${plannedTotal-actualTotal<0?'var(--flag)':'var(--ink)'}">${fmtCurrencyAmount(plannedTotal-actualTotal)}</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines</p>
-    <table class="plain-table">
-      <tr><th>Category</th><th>Wedding</th><th>Planned</th><th>Actual spent (${currencySymbol()})</th><th>Remaining</th><th></th></tr>
+    <div class="tablewrap"><table class="plain-table">
+      <tr><th>Category</th><th>Wedding</th><th>Planned</th><th>Actual spent</th><th>Remaining</th><th></th></tr>
       ${rows || '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
-    </table>`;
+    </table></div>`;
   document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: fromDisplayAmount(parseFloat(e.target.value)||0)}); renderBudget(); });
   document.getElementById('addBudgetBtn').addEventListener('click', ()=>budgetOverlay.classList.add('show'));
   document.getElementById('exportBudgetBtn').addEventListener('click', ()=>{
-    const header=['Category','Wedding','Planned (£)','Actual (£)','Remaining (£)'];
-    const aoa=[header, ...shown.map(b=>[b.cat, ({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country], b.planned, b.actual, b.planned-b.actual]), [], ['Total', '', plannedTotal, actualTotal, plannedTotal-actualTotal]];
+    const header=['Category','Wedding','Planned (£)','Planned (Rs)','Actual (£)','Actual (Rs)',`Remaining (${currencySymbol()})`];
+    const totalPlannedGbp = shown.reduce((s,b)=>s+(b.planned||0),0);
+    const totalPlannedLkr = shown.reduce((s,b)=>s+(b.plannedLkr||0),0);
+    const totalActualGbp = shown.reduce((s,b)=>s+(b.actual||0),0);
+    const totalActualLkr = shown.reduce((s,b)=>s+(b.actualLkr||0),0);
+    const aoa=[header, ...shown.map(b=>[b.cat, ({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country], b.planned||'', b.plannedLkr||'', b.actual||'', b.actualLkr||'', effectiveAmount(b,'planned',state.displayCurrency)-effectiveAmount(b,'actual',state.displayCurrency)]), [], ['Total', '', totalPlannedGbp, totalPlannedLkr, totalActualGbp, totalActualLkr, plannedTotal-actualTotal]];
     exportRowsToExcel('wedding-budget.xlsx','Budget',aoa);
   });
   document.getElementById('budgetSearch').addEventListener('input', e=>{ state.budgetSearch=e.target.value; renderBudget(); });
   document.getElementById('bf_country').addEventListener('change', e=>{ state.budgetFilters.country=e.target.value; renderBudget(); });
-  document.querySelectorAll('[data-actual]').forEach(inp=>inp.addEventListener('change', async ()=>{
-    await sb.from('budget_items').update({actual: fromDisplayAmount(parseFloat(inp.value)||0)}).eq('id', inp.dataset.actual);
-    await loadBudget(); renderBudget();
+  document.querySelectorAll('[data-field][data-budgetid]').forEach(el=>el.addEventListener('change', ()=>{
+    updateBudgetField(el.dataset.budgetid, el.dataset.field, el.value.trim());
+  }));
+  document.querySelectorAll('[data-budgetfield]').forEach(inp=>inp.addEventListener('change', ()=>{
+    updateBudgetField(inp.dataset.budgetid, inp.dataset.budgetfield, parseFloat(inp.value)||0);
   }));
   document.querySelectorAll('[data-rmbudget]').forEach(b=>b.addEventListener('click', async ()=>{
     await sb.from('budget_items').delete().eq('id', b.dataset.rmbudget); await loadBudget(); renderBudget();
@@ -2809,9 +2857,16 @@ document.getElementById('cancelBudget').addEventListener('click', ()=>budgetOver
 document.getElementById('saveBudget').addEventListener('click', async ()=>{
   const cat = document.getElementById('b_cat').value.trim();
   if(!cat){ alert('Please enter a category.'); return; }
-  await sb.from('budget_items').insert({wedding_id:weddingId, category:cat, country:document.getElementById('b_country').value, planned:fromDisplayAmount(parseFloat(document.getElementById('b_planned').value)||0), actual:fromDisplayAmount(parseFloat(document.getElementById('b_actual').value)||0)});
-  ['b_cat','b_planned'].forEach(id=>document.getElementById(id).value='');
+  await sb.from('budget_items').insert({
+    wedding_id:weddingId, category:cat, country:document.getElementById('b_country').value,
+    planned:parseFloat(document.getElementById('b_planned').value)||0,
+    planned_lkr:parseFloat(document.getElementById('b_plannedLkr').value)||0,
+    actual:parseFloat(document.getElementById('b_actual').value)||0,
+    actual_lkr:parseFloat(document.getElementById('b_actualLkr').value)||0
+  });
+  ['b_cat','b_planned','b_plannedLkr'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('b_actual').value='0';
+  document.getElementById('b_actualLkr').value='0';
   budgetOverlay.classList.remove('show');
   await loadBudget(); renderBudget();
 });
