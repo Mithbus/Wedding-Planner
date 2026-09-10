@@ -61,7 +61,7 @@ header{padding:0;text-align:left;}
 .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;}
 .eyebrow-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .eyebrow-row .eyebrow{margin-bottom:6px;}
-.currency-pillrow{display:flex;border:1px solid var(--line);border-radius:20px;overflow:hidden;margin-bottom:6px;}
+.currency-pillrow{display:flex;border:1px solid var(--line);border-radius:20px;overflow:hidden;margin-top:10px;width:fit-content;}
 .currency-pill{font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:.04em;padding:3px 8px;background:var(--paper-raised);color:var(--ink-soft);border:none;cursor:pointer;width:auto;}
 .currency-pill:hover{color:var(--ink);}
 .currency-pill.active{background:var(--ink);color:var(--paper-raised);}
@@ -319,6 +319,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .bulk-bar .bulk-count{font-size:12.5px;font-weight:600;white-space:nowrap;}
 .bulk-bar select{width:auto;border:1px solid rgba(255,255,255,.3);background:var(--ink);color:var(--paper-raised);border-radius:6px;padding:5px 8px;font-size:12.5px;}
 .bulk-bar button{width:auto;background:none;border:1px solid rgba(255,255,255,.3);color:var(--paper-raised);border-radius:6px;padding:5px 10px;font-size:12.5px;}
+.cell-input{width:100%;min-width:80px;box-sizing:border-box;border:1px solid transparent;background-color:transparent;padding:6px 7px;border-radius:6px;font-family:inherit;font-size:12.5px;color:var(--ink);}
+.cell-input:hover{background-color:var(--paper);}
+.cell-input:focus{background-color:var(--paper-raised);border-color:var(--line);outline:none;}
 .plain-table select.cell-input{min-width:118px;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%235A564C' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");}
 select.side-partner1{background-color:var(--uk-soft);}
 select.side-partner2{background-color:var(--sl-soft);}
@@ -338,7 +341,7 @@ select.attend-maybe{background-color:var(--paper);}
 .amt-wrap.large::before{font-size:20px;left:0;color:var(--ink);}
 .amt-wrap.large input{padding-left:26px !important;}
 .dual-cur{display:flex;gap:5px;}
-.dual-cur .amt-wrap{flex:1;min-width:0;}
+.dual-cur .amt-wrap{flex:1;min-width:85px;}
 .dual-cur input{width:100%;}
 
 .checklist-group{margin-bottom:26px;}
@@ -452,15 +455,11 @@ select.attend-maybe{background-color:var(--paper);}
 <aside class="sidebar">
   <div class="side-top">
     <header>
-      <div class="eyebrow-row">
-        <div class="eyebrow" id="coupleEyebrow">The Wedding Ledger</div>
-        <div class="currency-pillrow" id="currencyToggle">
-          <button type="button" class="currency-pill" data-currency="lkr" title="Show all costs in Sri Lankan Rupees">LKR</button>
-          <button type="button" class="currency-pill" data-currency="gbp" title="Show all costs in British Pounds">GBP</button>
-        </div>
-      </div>
       <h1>The Wedding <em>Ledger</em></h1>
-      <div class="sync-status" id="syncStatus"><span class="sync-dot" id="syncDot"></span>Synced</div>
+      <div class="currency-pillrow" id="currencyToggle">
+        <button type="button" class="currency-pill" data-currency="lkr" title="Show all costs in Sri Lankan Rupees">LKR</button>
+        <button type="button" class="currency-pill" data-currency="gbp" title="Show all costs in British Pounds">GBP</button>
+      </div>
     </header>
     <nav class="side-nav">
       <button class="mtab active" data-main="dashboard">Dashboard</button>
@@ -727,10 +726,7 @@ select.attend-maybe{background-color:var(--paper);}
   <div class="modal">
     <h2>Add vendor</h2>
     <div class="form-row"><label>Vendor name</label><input id="vd_name" placeholder="e.g. Cinnamon Bentota Beach"></div>
-    <div class="form-grid2">
-      <div class="form-row"><label>Category</label><input id="vd_category" placeholder="e.g. Venue, Catering, Photography"></div>
-      <div class="form-row"><label>Which wedding?</label><select id="vd_country"><option value="shared">Shared / both</option><option value="uk">UK</option><option value="sl">Sri Lanka</option></select></div>
-    </div>
+    <div class="form-row"><label>Category</label><input id="vd_category" placeholder="e.g. Venue, Catering, Photography"></div>
     <div class="form-grid2">
       <div class="form-row"><label>Contact name</label><input id="vd_contactName" placeholder="optional"></div>
       <div class="form-row"><label>Contact info</label><input id="vd_contactInfo" placeholder="email / phone"></div>
@@ -1141,7 +1137,6 @@ async function enterApp(){
   state.showFlagged = wedding.show_flagged !== false; document.getElementById('showFlagged').checked = state.showFlagged;
   state.showArchived = wedding.show_archived === true; document.getElementById('showArchived').checked = state.showArchived;
   state.displayCurrency = wedding.display_currency || 'lkr'; syncCurrencyToggleUI();
-  document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`;
   checkDueNotifications();
   renderDashboard();
 }
@@ -1234,7 +1229,7 @@ function setupRealtime(){
   sb.channel('wedding-checklist-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'checklist_items',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadChecklist(); if(state.main==='checklist') renderChecklist(); if(state.main==='dashboard') renderDashboard(); flash(); }).subscribe();
   sb.channel('wedding-calendar-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'calendar_events',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadCalendar(); if(state.main==='calendar') renderCalendar(); if(state.main==='dashboard') renderDashboard(); checkDueNotifications(); flash(); }).subscribe();
   sb.channel('wedding-moodboard-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'moodboard_items',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadMoodboard(); if(state.main==='moodboard') renderMoodboard(); flash(); }).subscribe();
-  sb.channel('wedding-row-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'weddings',filter:`id=eq.${weddingId}`}, async ()=>{ await loadWeddingRow(); document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`; state.displayCurrency = wedding.display_currency || 'lkr'; syncCurrencyToggleUI(); renderActive(); flash(); }).subscribe();
+  sb.channel('wedding-row-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'weddings',filter:`id=eq.${weddingId}`}, async ()=>{ await loadWeddingRow(); state.displayCurrency = wedding.display_currency || 'lkr'; syncCurrencyToggleUI(); renderActive(); flash(); }).subscribe();
   sb.channel('wedding-vendors-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'vendors',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadVendors(); if(state.main==='vendors') renderVendors(); flash(); }).subscribe();
   sb.channel('wedding-contributions-'+weddingId).on('postgres_changes', {event:'*',schema:'public',table:'contributions',filter:`wedding_id=eq.${weddingId}`}, async ()=>{ await loadContributions(); if(state.main==='budget') renderBudget(); flash(); }).subscribe();
 }
@@ -2845,22 +2840,44 @@ function visibleBudget(){
     return true;
   });
 }
+function captureFocus(){
+  const el = document.activeElement;
+  if(!el || !['INPUT','SELECT','TEXTAREA'].includes(el.tagName)) return null;
+  const attrs = [...el.attributes].filter(a=>a.name.startsWith('data-'));
+  if(!attrs.length) return null;
+  return {
+    selector: el.tagName.toLowerCase() + attrs.map(a=>`[${a.name}="${CSS.escape(a.value)}"]`).join(''),
+    selStart: (typeof el.selectionStart==='number') ? el.selectionStart : null,
+    selEnd: (typeof el.selectionEnd==='number') ? el.selectionEnd : null
+  };
+}
+function restoreFocus(captured){
+  if(!captured) return;
+  const el = document.querySelector(captured.selector);
+  if(!el) return;
+  el.focus();
+  if(captured.selStart!=null){ try{ el.setSelectionRange(captured.selStart, captured.selEnd); }catch(e){} }
+}
 const BUDGET_FIELD_DB_MAP = {cat:'category', country:'country', planned:'planned', plannedLkr:'planned_lkr', actual:'actual', actualLkr:'actual_lkr', paid:'paid', notes:'notes', vendorId:'vendor_id', dueDate:'due_date'};
 async function updateBudgetField(id, field, value){
   const dbField = BUDGET_FIELD_DB_MAP[field];
   if(!dbField) return;
   if((field==='dueDate'||field==='vendorId') && !value) value = null;
+  const focus = captureFocus();
   await sb.from('budget_items').update({[dbField]: value}).eq('id', id);
   await loadBudget();
   if(state.main==='vendors') renderVendors();
   else if(state.main==='budget') renderBudget();
   else if(state.main==='dashboard') renderDashboard();
+  restoreFocus(focus);
 }
 function renderBudget(){
   const committedTotal = budgetItems.reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
   const spentTotal = budgetItems.filter(b=>b.paid).reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
   const fundsReceived = contributions.reduce((s,c)=>s+effectiveContribAmount(c,state.displayCurrency),0);
-  const fundingBalance = fundsReceived - spentTotal;
+  const fundsReceivedGbp = contributions.reduce((s,c)=>s+effectiveContribAmount(c,'gbp'),0);
+  const spentTotalGbp = budgetItems.filter(b=>b.paid).reduce((s,b)=>s+effectiveAmount(b,'actual','gbp'),0);
+  const fundingBalanceGbp = fundsReceivedGbp - spentTotalGbp;
   const overallBudget = wedding.overall_budget || 0;
   const overallBudgetDisplay = toDisplayAmount(overallBudget);
   const shown = visibleBudget();
@@ -2905,7 +2922,7 @@ function renderBudget(){
       <div class="dcard"><div class="dlabel">Total committed</div><div class="dval">${fmtCurrencyAmount(committedTotal)}</div><div class="dsub">paid + scheduled</div></div>
       <div class="dcard"><div class="dlabel">Remaining vs overall budget</div><div class="dval" style="color:${overallBudgetDisplay-committedTotal<0?'var(--flag)':'var(--ink)'}">${fmtCurrencyAmount(overallBudgetDisplay-committedTotal)}</div></div>
       <div class="dcard"><div class="dlabel">Funds received</div><div class="dval">${fmtCurrencyAmount(fundsReceived)}</div><div class="dsub">from parents & other contributions</div></div>
-      <div class="dcard"><div class="dlabel">Funding balance</div><div class="dval" style="color:${fundingBalance<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(fundingBalance)}</div><div class="dsub">received minus spent so far</div></div>
+      <div class="dcard"><div class="dlabel">Funding balance (£)</div><div class="dval" style="color:${fundingBalanceGbp<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(fundingBalanceGbp,'gbp')}</div><div class="dsub">received minus spent so far — always in GBP</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines</p>
     <div class="tablewrap"><table class="plain-table">
@@ -2970,9 +2987,11 @@ async function updateContributionField(id, field, value){
   const dbField = CONTRIB_FIELD_DB_MAP[field];
   if(!dbField) return;
   if(field==='dateReceived' && !value) value = null;
+  const focus = captureFocus();
   await sb.from('contributions').update({[dbField]: value}).eq('id', id);
   await loadContributions();
   if(state.main==='budget') renderBudget();
+  restoreFocus(focus);
 }
 const contributionOverlay = document.getElementById('contributionOverlay');
 document.getElementById('cancelContribution').addEventListener('click', ()=>contributionOverlay.classList.remove('show'));
@@ -3045,8 +3064,10 @@ const VENDOR_FIELD_DB_MAP = {name:'name', category:'category', country:'country'
 async function updateVendorField(id, field, value){
   const dbField = VENDOR_FIELD_DB_MAP[field];
   if(!dbField) return;
+  const focus = captureFocus();
   await sb.from('vendors').update({[dbField]: value}).eq('id', id);
   await loadVendors(); renderVendors();
+  restoreFocus(focus);
 }
 async function addVendorPayment(vendorId){
   const v = vendors.find(x=>x.id===vendorId);
@@ -3081,13 +3102,8 @@ function renderVendors(){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
         <div style="flex:1;min-width:200px;">
           <input type="text" class="cell-input" data-vendorfield="name" data-vendorid="${v.id}" value="${escAttr(v.name)}" style="font-family:'Fraunces',serif;font-size:17px;font-weight:600;border:none;background:none;padding:2px 0;width:100%;">
-          <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
-            <input type="text" class="cell-input" data-vendorfield="category" data-vendorid="${v.id}" value="${escAttr(v.category)}" placeholder="Category" style="max-width:150px;">
-            <select class="cell-input" data-vendorfield="country" data-vendorid="${v.id}" style="max-width:130px;">
-              <option value="shared" ${v.country==='shared'?'selected':''}>Shared</option>
-              <option value="uk" ${v.country==='uk'?'selected':''}>UK</option>
-              <option value="sl" ${v.country==='sl'?'selected':''}>Sri Lanka</option>
-            </select>
+          <div style="margin-top:6px;max-width:220px;">
+            <input type="text" class="cell-input" data-vendorfield="category" data-vendorid="${v.id}" value="${escAttr(v.category)}" placeholder="Category">
           </div>
         </div>
         <div style="text-align:right;min-width:180px;">
@@ -3162,7 +3178,7 @@ document.getElementById('saveVendor').addEventListener('click', async ()=>{
   await sb.from('vendors').insert({
     wedding_id:weddingId, name,
     category:document.getElementById('vd_category').value.trim(),
-    country:document.getElementById('vd_country').value,
+    country:'sl',
     contact_name:document.getElementById('vd_contactName').value.trim(),
     contact_info:document.getElementById('vd_contactInfo').value.trim(),
     notes:document.getElementById('vd_notes').value.trim()
@@ -3431,7 +3447,6 @@ function renderSettings(){
   `;
   document.getElementById('saveNamesBtn').addEventListener('click', ()=>{
     saveWeddingField({partner1_name: document.getElementById('s_name1').value.trim()||'Partner 1', partner2_name: document.getElementById('s_name2').value.trim()||'Partner 2'});
-    document.getElementById('coupleEyebrow').textContent = `${partnerName(1)} & ${partnerName(2)}`;
     renderSettings();
   });
   document.getElementById('saveHomesBtn').addEventListener('click', ()=>{
