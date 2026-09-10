@@ -340,7 +340,7 @@ select.attend-maybe{background-color:var(--paper);}
 .reorder-btn:hover:not(:disabled){color:var(--ink);border-color:var(--ink-soft);}
 .reorder-btn:disabled{opacity:.35;cursor:default;}
 
-.amt-wrap{position:relative;display:inline-block;width:100%;}
+.amt-wrap{position:relative;display:inline-block;width:100%;min-width:100px;box-sizing:border-box;}
 .amt-wrap::before{content:attr(data-symbol);position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:13px;pointer-events:none;}
 .amt-wrap input{padding-left:26px !important;}
 .amt-wrap.large::before{font-size:20px;left:0;color:var(--ink);}
@@ -3120,7 +3120,7 @@ function renderVendors(){
             <input type="text" class="cell-input" data-vendorfield="name" data-vendorid="${v.id}" value="${escAttr(v.name)}" style="font-family:'Fraunces',serif;font-size:17px;font-weight:600;border:none;background:none;padding:2px 0;flex:1;">
           </div>
           <div style="display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap;">
-            <div style="max-width:220px;">
+            <div style="max-width:140px;">
               <input type="text" class="cell-input" data-vendorfield="category" data-vendorid="${v.id}" value="${escAttr(v.category)}" placeholder="Category">
             </div>
             <div>
