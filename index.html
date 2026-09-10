@@ -697,6 +697,7 @@ select.attend-maybe{background-color:var(--paper);}
         <div class="amt-wrap" data-symbol="Rs"><input id="b_actualLkr" type="number" value="0"></div>
       </div>
     </div>
+    <div class="form-row"><label>Comments (optional)</label><input id="b_notes" placeholder="e.g. payment schedule, contact info…"></div>
     <div class="modal-actions">
       <button class="btn ghost" id="cancelBudget">Cancel</button>
       <button class="btn" id="saveBudget">Add line</button>
@@ -1152,7 +1153,7 @@ async function loadGuests(){
 }
 async function loadBudget(){
   const { data } = await sb.from('budget_items').select('*').eq('wedding_id', weddingId).order('created_at');
-  budgetItems = (data||[]).map(b=>({id:b.id, cat:b.category, country:b.country, planned:+b.planned||0, actual:+b.actual||0, plannedLkr:+b.planned_lkr||0, actualLkr:+b.actual_lkr||0, sourceVenueId:b.source_venue_id||null, sourceVenueName:b.source_venue_name||null}));
+  budgetItems = (data||[]).map(b=>({id:b.id, cat:b.category, country:b.country, planned:+b.planned||0, actual:+b.actual||0, plannedLkr:+b.planned_lkr||0, actualLkr:+b.actual_lkr||0, notes:b.notes||'', sourceVenueId:b.source_venue_id||null, sourceVenueName:b.source_venue_name||null}));
 }
 async function loadChecklist(){
   const { data } = await sb.from('checklist_items').select('*').eq('wedding_id', weddingId).order('created_at');
@@ -2769,7 +2770,7 @@ function visibleBudget(){
     return true;
   });
 }
-const BUDGET_FIELD_DB_MAP = {cat:'category', country:'country', planned:'planned', plannedLkr:'planned_lkr', actual:'actual', actualLkr:'actual_lkr'};
+const BUDGET_FIELD_DB_MAP = {cat:'category', country:'country', planned:'planned', plannedLkr:'planned_lkr', actual:'actual', actualLkr:'actual_lkr', notes:'notes'};
 async function updateBudgetField(id, field, value){
   const dbField = BUDGET_FIELD_DB_MAP[field];
   if(!dbField) return;
@@ -2800,6 +2801,7 @@ function renderBudget(){
           <div class="amt-wrap" data-symbol="Rs"><input type="number" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${b.actualLkr||''}"></div>
         </div></td>
       <td class="numcell" style="font-family:'IBM Plex Mono',monospace;color:${remaining<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(remaining)}</td>
+      <td><input type="text" class="cell-input" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Add a comment…"></td>
       <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
     </tr>`;
   }).join('');
@@ -2826,18 +2828,18 @@ function renderBudget(){
     </div>
     <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines</p>
     <div class="tablewrap"><table class="plain-table">
-      <tr><th>Category</th><th>Wedding</th><th>Planned</th><th>Actual spent</th><th>Remaining</th><th></th></tr>
-      ${rows || '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
+      <tr><th>Category</th><th>Wedding</th><th>Planned</th><th>Actual spent</th><th>Remaining</th><th>Comments</th><th></th></tr>
+      ${rows || '<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
     </table></div>`;
   document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: fromDisplayAmount(parseFloat(e.target.value)||0)}); renderBudget(); });
   document.getElementById('addBudgetBtn').addEventListener('click', ()=>budgetOverlay.classList.add('show'));
   document.getElementById('exportBudgetBtn').addEventListener('click', ()=>{
-    const header=['Category','Wedding','Planned (£)','Planned (Rs)','Actual (£)','Actual (Rs)',`Remaining (${currencySymbol()})`];
+    const header=['Category','Wedding','Planned (£)','Planned (Rs)','Actual (£)','Actual (Rs)',`Remaining (${currencySymbol()})`,'Comments'];
     const totalPlannedGbp = shown.reduce((s,b)=>s+(b.planned||0),0);
     const totalPlannedLkr = shown.reduce((s,b)=>s+(b.plannedLkr||0),0);
     const totalActualGbp = shown.reduce((s,b)=>s+(b.actual||0),0);
     const totalActualLkr = shown.reduce((s,b)=>s+(b.actualLkr||0),0);
-    const aoa=[header, ...shown.map(b=>[b.cat, ({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country], b.planned||'', b.plannedLkr||'', b.actual||'', b.actualLkr||'', effectiveAmount(b,'planned',state.displayCurrency)-effectiveAmount(b,'actual',state.displayCurrency)]), [], ['Total', '', totalPlannedGbp, totalPlannedLkr, totalActualGbp, totalActualLkr, plannedTotal-actualTotal]];
+    const aoa=[header, ...shown.map(b=>[b.cat, ({uk:'UK',sl:'Sri Lanka',shared:'Shared'})[b.country], b.planned||'', b.plannedLkr||'', b.actual||'', b.actualLkr||'', effectiveAmount(b,'planned',state.displayCurrency)-effectiveAmount(b,'actual',state.displayCurrency), b.notes||'']), [], ['Total', '', totalPlannedGbp, totalPlannedLkr, totalActualGbp, totalActualLkr, plannedTotal-actualTotal, '']];
     exportRowsToExcel('wedding-budget.xlsx','Budget',aoa);
   });
   document.getElementById('budgetSearch').addEventListener('input', e=>{ state.budgetSearch=e.target.value; renderBudget(); });
@@ -2862,9 +2864,10 @@ document.getElementById('saveBudget').addEventListener('click', async ()=>{
     planned:parseFloat(document.getElementById('b_planned').value)||0,
     planned_lkr:parseFloat(document.getElementById('b_plannedLkr').value)||0,
     actual:parseFloat(document.getElementById('b_actual').value)||0,
-    actual_lkr:parseFloat(document.getElementById('b_actualLkr').value)||0
+    actual_lkr:parseFloat(document.getElementById('b_actualLkr').value)||0,
+    notes:document.getElementById('b_notes').value.trim()
   });
-  ['b_cat','b_planned','b_plannedLkr'].forEach(id=>document.getElementById(id).value='');
+  ['b_cat','b_planned','b_plannedLkr','b_notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('b_actual').value='0';
   document.getElementById('b_actualLkr').value='0';
   budgetOverlay.classList.remove('show');
