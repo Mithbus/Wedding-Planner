@@ -160,7 +160,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .vtable.vendor-table td{padding:9px 8px;}
 .vtable.vendor-table td.numcell{white-space:nowrap;}
 .vtable.vendor-table td .badge{white-space:nowrap;}
-.vtable td .over{color:var(--flag);}
 
 .grid{display:grid;grid-template-columns:1fr;gap:12px;}
 .grid.multi{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));}
@@ -3360,18 +3359,16 @@ function vendorSummary(v){
   const cur = state.displayCurrency;
   const payments = vendorPayments(v.id);
   const total = vendorTotalCostDisplay(v, cur);
-  const accounted = payments.reduce((s,b)=>s+effectiveAmount(b,'actual',cur),0);
   const paid = payments.filter(b=>b.paid).reduce((s,b)=>s+effectiveAmount(b,'actual',cur),0);
   return {
     v, id:v.id, name:v.name||'', category:v.category||'', contact:v.contactName||'',
-    total, paid, unscheduled: total-accounted,
+    total, paid, remaining: total-paid,
     nextDue: vendorNextDue(v.id),
     paymentCount: payments.length, paidCount: payments.filter(b=>b.paid).length
   };
 }
-function vendorUnscheduledText(r){
-  if(!(r.total>0) || Math.abs(r.unscheduled)<=1) return '';
-  return r.unscheduled>0 ? fmtCurrencyAmount(r.unscheduled) : 'Over by '+fmtCurrencyAmount(-r.unscheduled);
+function vendorRemainingText(r){
+  return r.total>0 ? fmtCurrencyAmount(Math.max(0, r.remaining)) : '';
 }
 function vendorPaymentsText(r){ return r.paymentCount ? `${r.paidCount} of ${r.paymentCount} paid` : ''; }
 CF.register('vendors', {
@@ -3383,7 +3380,7 @@ CF.register('vendors', {
     contact:{get:r=>r.contact},
     total:{get:r=>r.total>0?fmtCurrencyAmount(r.total):'', sort:r=>r.total, type:'num', volatile:true},
     paid:{get:r=>r.paid>0?fmtCurrencyAmount(r.paid):'', sort:r=>r.paid, type:'num', volatile:true},
-    unscheduled:{get:r=>vendorUnscheduledText(r), sort:r=>r.unscheduled, type:'num', volatile:true},
+    remaining:{get:r=>vendorRemainingText(r), sort:r=>r.total>0?Math.max(0,r.remaining):null, type:'num', volatile:true},
     nextDue:{get:r=>formatDateDMY(r.nextDue), sort:r=>r.nextDue||'', type:'date'},
     payments:{get:r=>vendorPaymentsText(r), sort:r=>r.paidCount/(r.paymentCount||1)}
   }
@@ -3434,14 +3431,13 @@ function renderVendorDrawer(){
   const payments = vendorPayments(v.id);
   const focus = captureFocus();
   const scrollTop = pane.scrollTop;
-  const unsched = vendorUnscheduledText(r);
   pane.innerHTML = `
     <button class="back-link" id="vdCloseBtn">✕ Close</button>
     <div class="vd-detail">
       <input type="text" class="vd-title" data-vendorfield="name" data-vendorid="${v.id}" value="${escAttr(v.name)}" placeholder="Vendor name">
       <div class="vd-summary">
         <span>${fmtCurrencyAmount(r.paid)} paid</span>
-        ${unsched ? `<span style="color:var(--flag);">${r.unscheduled>0 ? unsched+' not yet scheduled' : unsched.replace('Over by ','')+' over total cost'}</span>` : ''}
+        ${r.total>0 ? `<span>${vendorRemainingText(r)} remaining</span>` : ''}
         ${r.nextDue ? dueDateBadge(r.nextDue, false) : ''}
       </div>
       <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">
@@ -3506,7 +3502,7 @@ function renderVendors(){
       <td>${escAttr(r.contact)}</td>
       <td class="numcell"><b>${r.total>0?fmtCurrencyAmount(r.total):'—'}</b></td>
       <td class="numcell">${r.paid>0?fmtCurrencyAmount(r.paid):'—'}</td>
-      <td class="numcell">${vendorUnscheduledText(r) ? (r.unscheduled>0 ? vendorUnscheduledText(r) : `<span class="over">${vendorUnscheduledText(r)}</span>`) : '—'}</td>
+      <td class="numcell">${r.total>0 ? vendorRemainingText(r) : '—'}</td>
       <td>${r.nextDue ? dueDateBadge(r.nextDue, false) : (r.paymentCount && r.paidCount===r.paymentCount ? dueDateBadge(null, true) : '—')}</td>
       <td>${r.paymentCount ? `${r.paidCount} of ${r.paymentCount} paid` : '<span style="color:var(--ink-soft);">No payments</span>'}</td>
       <td onclick="event.stopPropagation()"><button class="rmbtn rmx" data-rmvendor="${r.id}" title="Delete vendor" aria-label="Delete vendor">✕</button></td>
@@ -3519,7 +3515,7 @@ function renderVendors(){
     </div>
     <p class="result-count">Showing ${rows.length} of ${vendors.length} vendors — click a vendor for details${CF.clearLink('vendors')}</p>
     <div class="tablewrap vendor-tablewrap"><table class="vtable vendor-table">
-      <tr>${CF.th('vendors','name','Vendor')}${CF.th('vendors','category','Category')}${CF.th('vendors','contact','Contact')}${CF.th('vendors','total','Total cost')}${CF.th('vendors','paid','Paid so far')}${CF.th('vendors','unscheduled','Not yet scheduled')}${CF.th('vendors','nextDue','Next payment')}${CF.th('vendors','payments','Payments')}<th></th></tr>
+      <tr>${CF.th('vendors','name','Vendor')}${CF.th('vendors','category','Category')}${CF.th('vendors','contact','Contact')}${CF.th('vendors','total','Total cost')}${CF.th('vendors','paid','Paid so far')}${CF.th('vendors','remaining','Total remaining')}${CF.th('vendors','nextDue','Next payment')}${CF.th('vendors','payments','Payments')}<th></th></tr>
       ${body || `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--ink-soft);">${vendors.length ? 'No vendors match these filters.' : 'No vendors added yet.'}</td></tr>`}
     </table></div>`;
   const tabEl = document.getElementById('tab-vendors');
