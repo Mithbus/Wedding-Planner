@@ -354,6 +354,10 @@ select.attend-maybe{background-color:var(--paper);}
 .cf-list label{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer;text-transform:none;letter-spacing:0;}
 .cf-list input{width:15px;height:15px;accent-color:var(--ink);margin:0;flex-shrink:0;}
 .cf-list .cf-empty{color:var(--ink-soft);padding:6px 0;}
+.cf-list .cf-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cf-only{background:none;border:none;color:var(--info);font-size:11px;text-decoration:underline;padding:0 2px;opacity:0;cursor:pointer;}
+.cf-list label:hover .cf-only,.cf-only:focus{opacity:1;}
+@media (hover:none){.cf-only{opacity:1;}}
 .cf-actions{display:flex;justify-content:flex-end;gap:8px;padding:8px 4px 4px;flex-shrink:0;}
 .cf-actions button{padding:6px 16px;border-radius:6px;font-size:12.5px;font-weight:600;border:1px solid var(--ink);}
 .cf-ok{background:var(--ink);color:var(--paper-raised);}
@@ -1105,16 +1109,42 @@ const CF = {
     const cancel=document.createElement('button'); cancel.type='button'; cancel.className='cf-cancel'; cancel.textContent='Cancel';
     actions.append(ok, cancel); el.append(actions);
 
-    const mkRow=(text, isChecked, onChange)=>{
+    const apply=()=>{
+      const ex=new Set(all.filter(v=>!checked.has(v)));
+      if(ex.size) this.filters[id][key]=ex; else delete this.filters[id][key];
+      this.close(); t.rerender();
+    };
+    const mkRow=(text, isChecked, onChange, onOnly)=>{
       const lab=document.createElement('label');
       const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=isChecked;
       cb.addEventListener('change', ()=>onChange(cb.checked));
-      const sp=document.createElement('span'); sp.textContent=text;
-      lab.append(cb, sp); return {lab, cb};
+      const sp=document.createElement('span'); sp.textContent=text; sp.className='cf-text';
+      lab.append(cb, sp);
+      if(onOnly){
+        const only=document.createElement('button'); only.type='button'; only.className='cf-only'; only.textContent='only'; only.title='Show only this value';
+        only.addEventListener('click', e=>{ e.preventDefault(); e.stopPropagation(); onOnly(); });
+        lab.append(only);
+      }
+      return {lab, cb};
+    };
+    const matching=()=>{
+      const q=search.value.trim().toLowerCase();
+      return all.filter(v=>(v===''?'(blanks)':v.toLowerCase()).includes(q));
+    };
+    let beforeSearch=null;
+    const onSearch=()=>{
+      // Like Excel: typing a search ticks only the matches, so OK filters to them
+      if(search.value.trim()){
+        if(!beforeSearch) beforeSearch=new Set(checked);
+        checked.clear(); matching().forEach(v=>checked.add(v));
+      } else if(beforeSearch){
+        checked.clear(); beforeSearch.forEach(v=>checked.add(v)); beforeSearch=null;
+      }
+      renderList();
     };
     const renderList=()=>{
       const q=search.value.trim().toLowerCase();
-      const visible=all.filter(v=>(v===''?'(blanks)':v.toLowerCase()).includes(q));
+      const visible=matching();
       list.replaceChildren();
       if(!visible.length){ const d=document.createElement('div'); d.className='cf-empty'; d.textContent='No matches'; list.append(d); }
       else {
@@ -1132,19 +1162,16 @@ const CF = {
             const first=list.querySelector('input');
             first.checked = n===visible.length; first.indeterminate = n>0 && n<visible.length;
             ok.disabled = checked.size===0;
-          }).lab);
+          }, ()=>{ checked.clear(); checked.add(v); apply(); }).lab);
         });
       }
       ok.disabled = checked.size===0;
     };
-    search.addEventListener('input', renderList);
+    search.addEventListener('input', onSearch);
+    search.addEventListener('keydown', e=>{ if(e.key==='Enter' && !ok.disabled){ e.preventDefault(); apply(); } });
     renderList();
 
-    ok.addEventListener('click', ()=>{
-      const ex=new Set(all.filter(v=>!checked.has(v)));
-      if(ex.size) this.filters[id][key]=ex; else delete this.filters[id][key];
-      this.close(); t.rerender();
-    });
+    ok.addEventListener('click', apply);
     cancel.addEventListener('click', ()=>this.close());
     el.addEventListener('click', e=>{
       const b=e.target.closest('[data-cfa]');
