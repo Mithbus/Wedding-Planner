@@ -677,6 +677,7 @@ select.attend-maybe{background-color:var(--paper);}
     </div>
     <div class="form-grid2">
       <div class="form-row"><label>Likely to attend</label><select id="g_attend"><option value="yes">Yes</option><option value="no">No</option><option value="maybe" selected>Maybe</option></select></div>
+      <div class="form-row"><label class="chk" style="margin-top:26px;"><input type="checkbox" id="g_savethedate"> Save the date sent</label></div>
       <div class="form-row"><label class="chk" style="margin-top:26px;"><input type="checkbox" id="g_confirmed"> Confirmed</label></div>
     </div>
     <div class="form-row"><label>Contact (email or phone)</label><input id="g_contact" placeholder="optional"></div>
@@ -2634,6 +2635,7 @@ const GUEST_SORT_GETTERS = {
   tag: g=>g.tag||'',
   contact: g=>g.contact||'',
   attend: g=>({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend]||'',
+  saveTheDate: g=>g.save_the_date_sent?'Sent':'Not sent',
   confirmed: g=>g.confirmed?'Confirmed':'Not confirmed',
   notes: g=>g.notes||''
 };
@@ -2677,6 +2679,7 @@ function renderGuests(){
   const maybeCount = guests.filter(g=>g.attend==='maybe').length;
   const noCount = guests.filter(g=>g.attend==='no').length;
   const confirmedCount = guests.filter(g=>g.confirmed).length;
+  const saveTheDateCount = guests.filter(g=>g.save_the_date_sent).length;
   const p1Count = guests.filter(g=>g.side==='partner1').length, p2Count = guests.filter(g=>g.side==='partner2').length, bCount = guests.filter(g=>g.side==='both').length;
   const shown = visibleGuests();
   const shownIds = shown.map(g=>g.id);
@@ -2688,6 +2691,7 @@ function renderGuests(){
       <td><input type="text" class="cell-input" data-field="tag" data-guestid="${g.id}" value="${escAttr(g.tag||'')}" placeholder="e.g. Dad's guest"></td>
       <td><input type="text" class="cell-input" data-field="contact" data-guestid="${g.id}" value="${escAttr(g.contact||'')}" placeholder="—"></td>
       <td><select class="cell-input attend-${g.attend}" data-field="attend" data-guestid="${g.id}">${attendOptionsHTML(g.attend)}</select></td>
+      <td class="checkcell"><input type="checkbox" class="savethedate-check" data-guestid="${g.id}" ${g.save_the_date_sent?'checked':''}></td>
       <td class="checkcell"><input type="checkbox" class="confirm-check" data-guestid="${g.id}" ${g.confirmed?'checked':''}></td>
       <td><input type="text" class="cell-input" data-field="notes" data-guestid="${g.id}" value="${escAttr(g.notes||'')}" placeholder="Add a note…"></td>
       <td><button class="rmbtn" data-rmguest="${g.id}">Remove</button></td>
@@ -2708,6 +2712,7 @@ function renderGuests(){
     <div class="dcards">
       <div class="dcard"><div class="dlabel">Total guests</div><div class="dval">${guests.length}</div></div>
       <div class="dcard"><div class="dlabel">${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${p1Count} / ${p2Count} / ${bCount}</div></div>
+      <div class="dcard"><div class="dlabel">Save the dates sent</div><div class="dval">${saveTheDateCount} <span style="font-size:14px;color:var(--ink-soft);">of ${guests.length}</span></div></div>
       <div class="dcard"><div class="dlabel">Confirmed guests</div><div class="dval">${confirmedCount}</div></div>
       <div class="dcard"><div class="dlabel">Likely yes / maybe / no</div><div class="dval" style="font-size:18px;">${yesCount} / ${maybeCount} / ${noCount}</div></div>
     </div>
@@ -2719,8 +2724,8 @@ function renderGuests(){
       <button type="button" id="clearSelection">Clear selection</button>
     </div>` : ''}
     <div class="tablewrap"><table class="plain-table">
-      <tr><th class="checkcell"><input type="checkbox" id="guestSelectAll" ${allVisibleSelected?'checked':''}></th>${guestSortTh('Name','name')}${guestSortTh('Whose guest','side')}${guestSortTh('Tag','tag')}${guestSortTh('Contact','contact')}${guestSortTh('Likely to attend','attend')}${guestSortTh('Confirmed','confirmed')}${guestSortTh('Notes','notes')}<th></th></tr>
-      ${rows || '<tr><td colspan="9" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
+      <tr><th class="checkcell"><input type="checkbox" id="guestSelectAll" ${allVisibleSelected?'checked':''}></th>${guestSortTh('Name','name')}${guestSortTh('Whose guest','side')}${guestSortTh('Tag','tag')}${guestSortTh('Contact','contact')}${guestSortTh('Likely to attend','attend')}${guestSortTh('Save the date','saveTheDate')}${guestSortTh('Confirmed','confirmed')}${guestSortTh('Notes','notes')}<th></th></tr>
+      ${rows || '<tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
     </table></div>`;
   document.getElementById('addGuestBtn').addEventListener('click', ()=>{ document.getElementById('g_side').innerHTML = sideOptionsHTML('partner1'); guestOverlay.classList.add('show'); });
   document.getElementById('importGuestsBtn').addEventListener('click', ()=>document.getElementById('importGuestsFile').click());
@@ -2748,6 +2753,7 @@ function renderGuests(){
       const tagCol = findCol(sample, ['tag','tags']);
       const attendCol = findCol(sample, ['likely to attend','attend','attending']);
       const confirmedCol = findCol(sample, ['confirmed','rsvp confirmed','is confirmed']);
+      const saveTheDateCol = findCol(sample, ['save the date sent','save the date']);
       const contactCol = findCol(sample, ['contact','email','phone']);
       const notesCol = findCol(sample, ['notes','note']);
       const sideMap = {"mithun's":'partner1',"gayathma's":'partner2','both':'both','both / mutual':'both'};
@@ -2759,12 +2765,14 @@ function renderGuests(){
         const rawSide = sideCol ? (r[sideCol]||'').toString().trim().toLowerCase() : '';
         const rawAttend = attendCol ? (r[attendCol]||'').toString().trim().toLowerCase() : '';
         const rawConfirmed = confirmedCol ? (r[confirmedCol]||'').toString().trim().toLowerCase() : '';
+        const rawSaveTheDate = saveTheDateCol ? (r[saveTheDateCol]||'').toString().trim().toLowerCase() : '';
         return {
           wedding_id: weddingId, name,
           side: sideMap[rawSide] || 'both',
           tag: tagCol ? (r[tagCol]||'').toString().trim() : '',
           attend: attendMap[rawAttend] || 'maybe',
           confirmed: truthy.includes(rawConfirmed),
+          save_the_date_sent: truthy.includes(rawSaveTheDate),
           contact: contactCol ? (r[contactCol]||'').toString().trim() : '',
           notes: notesCol ? (r[notesCol]||'').toString().trim() : ''
         };
@@ -2780,8 +2788,8 @@ function renderGuests(){
     e.target.value='';
   });
   document.getElementById('exportGuestsBtn').addEventListener('click', ()=>{
-    const header=['Name','Whose guest','Tag','Contact','Likely to attend','Confirmed','Notes'];
-    const aoa=[header, ...shown.map(g=>[g.name, g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.tag||'', g.contact||'', ({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend], g.confirmed?'Yes':'No', g.notes||''])];
+    const header=['Name','Whose guest','Tag','Contact','Likely to attend','Save the date sent','Confirmed','Notes'];
+    const aoa=[header, ...shown.map(g=>[g.name, g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.tag||'', g.contact||'', ({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend], g.save_the_date_sent?'Yes':'No', g.confirmed?'Yes':'No', g.notes||''])];
     exportRowsToExcel('guest-list.xlsx','Guests',aoa);
   });
   document.getElementById('guestSearch').addEventListener('input', e=>{
@@ -2811,6 +2819,9 @@ function renderGuests(){
     if(cb.checked) selectedGuestIds.add(id); else selectedGuestIds.delete(id);
     renderGuests();
   }));
+  document.querySelectorAll('.savethedate-check').forEach(cb=>cb.addEventListener('change', ()=>{
+    updateGuestField(cb.dataset.guestid, 'save_the_date_sent', cb.checked);
+  }));
   document.querySelectorAll('.confirm-check').forEach(cb=>cb.addEventListener('change', ()=>{
     updateGuestField(cb.dataset.guestid, 'confirmed', cb.checked);
   }));
@@ -2837,10 +2848,12 @@ document.getElementById('saveGuest').addEventListener('click', async ()=>{
     tag: document.getElementById('g_tag').value.trim(),
     attend:document.getElementById('g_attend').value,
     confirmed: document.getElementById('g_confirmed').checked,
+    save_the_date_sent: document.getElementById('g_savethedate').checked,
     contact:document.getElementById('g_contact').value.trim(), notes:document.getElementById('g_notes').value.trim()
   });
   ['g_name','g_tag','g_contact','g_notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('g_confirmed').checked = false;
+  document.getElementById('g_savethedate').checked = false;
   guestOverlay.classList.remove('show');
   await loadGuests(); renderGuests();
 });
