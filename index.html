@@ -147,7 +147,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   transform:translateX(100%);transition:transform .28s ease;
 }
 .venue-drawer.show{transform:translateX(0);}
-@media (max-width:860px){ .venue-drawer{width:100vw;} }
+.venue-drawer.vendor-drawer{width:min(980px,96vw);}
+@media (max-width:860px){ .venue-drawer,.venue-drawer.vendor-drawer{width:100vw;} }
+.vd-detail .vd-title{width:100%;font-family:'Fraunces',serif;font-size:22px;font-weight:600;border:none;background:none;padding:2px 0;color:var(--ink);}
+.vd-detail .vd-title:hover,.vd-detail .vd-title:focus{background:var(--paper);outline:none;border-radius:6px;}
+.vd-summary{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:8px 0 14px;font-size:12.5px;color:var(--ink-soft);}
+.vd-label{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+.vtable.vendor-table{min-width:760px;}
+.vtable td .over{color:var(--flag);}
 
 .grid{display:grid;grid-template-columns:1fr;gap:12px;}
 .grid.multi{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));}
@@ -333,10 +340,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .pay-table .amt-wrap{min-width:128px;}
 .pay-table td.statuscell{min-width:140px;}
 /* Vendor card total-cost boxes match the other inputs */
-.info-card .dual-cur .num-input{width:100%;box-sizing:border-box;border:1px solid var(--line);background-color:var(--paper-raised);padding:6px 7px 6px 26px;border-radius:6px;font-family:inherit;font-size:12.5px;color:var(--ink);}
-.info-card .dual-cur .num-input:hover{border-color:var(--ink-soft);}
-.info-card .dual-cur .num-input:focus{background-color:#fff;border-color:var(--ink-soft);outline:none;}
-.info-card .dual-cur .amt-wrap{min-width:150px;}
+.vd-detail .dual-cur .num-input{width:100%;box-sizing:border-box;border:1px solid var(--line);background-color:var(--paper-raised);padding:6px 7px 6px 26px;border-radius:6px;font-family:inherit;font-size:12.5px;color:var(--ink);}
+.vd-detail .dual-cur .num-input:hover{border-color:var(--ink-soft);}
+.vd-detail .dual-cur .num-input:focus{background-color:#fff;border-color:var(--ink-soft);outline:none;}
+.vd-detail .dual-cur .amt-wrap{min-width:150px;}
 .plain-table select.cell-input{min-width:118px;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%235A564C' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");}
 select.side-partner1{background-color:var(--uk-soft);}
 select.side-partner2{background-color:var(--sl-soft);}
@@ -599,6 +606,8 @@ select.attend-maybe{background-color:var(--paper);}
 
   <div class="drawer-backdrop" id="venueDrawerBackdrop"></div>
   <div class="venue-drawer" id="venueDetailPane"></div>
+  <div class="drawer-backdrop" id="vendorDrawerBackdrop"></div>
+  <div class="venue-drawer vendor-drawer" id="vendorDetailPane"></div>
 
   <div id="tab-guests" style="display:none;"></div>
   <div id="tab-budget" style="display:none;"></div>
@@ -1027,7 +1036,7 @@ let state = {
   sortKey:'cost', sortDir:'asc', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false, openMenuId:null,
   venueSearch:'', venueColFilters:{hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
   guestSearch:'', guestSortKey:'', guestSortDir:'asc',
-  budgetSearch:'', vendorSearch:'',
+  budgetSearch:'', vendorSearch:'', activeVendorId:null,
   checklistSearch:'', checklistFilters:{group:'',done:''},
   calMonth: new Date().getMonth(), calYear: new Date().getFullYear(), calSelectedDate:null,
   moodCategory:'all'
@@ -1815,6 +1824,7 @@ function goTo(main, opts){
   opts = opts||{};
   document.querySelectorAll('.mtab').forEach(x=>x.classList.toggle('active', x.dataset.main===main));
   state.main = main;
+  if(main!=='vendors') closeVendorDrawer();
   ALL_TABS.forEach(m=>{ document.getElementById('tab-'+m).style.display = (m===main)?'block':'none'; });
   document.getElementById('venueToolbar').style.display = (main==='venues')?'block':'none';
   document.getElementById('mainWrap').classList.toggle('wrap-wide', main==='venues');
@@ -3328,9 +3338,6 @@ function vendorNextDue(vendorId){
   const outstanding = vendorPayments(vendorId).filter(b=>b.dueDate && !b.paid);
   return outstanding.length ? outstanding[0].dueDate : null;
 }
-function visibleVendors(){
-  return vendors.filter(v=>!state.vendorSearch || v.name.toLowerCase().includes(state.vendorSearch.toLowerCase())).slice().sort((a,b)=>a.sortOrder-b.sortOrder);
-}
 async function moveVendor(id, dir){
   const shown = visibleVendors();
   const idx = shown.findIndex(v=>v.id===id);
@@ -3358,111 +3365,198 @@ async function addVendorPayment(vendorId){
   await sb.from('budget_items').insert({wedding_id:weddingId, category:v.category||v.name, country:v.country||'shared', vendor_id:vendorId, actual:0, actual_lkr:0});
   await loadBudget(); renderVendors();
 }
-function renderVendors(){
-  const shown = visibleVendors();
-  const cards = shown.map((v,idx)=>{
-    const payments = vendorPayments(v.id);
-    const totalCost = vendorTotalCostDisplay(v, state.displayCurrency);
-    const accountedFor = payments.reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
-    const paidSoFar = payments.filter(b=>b.paid).reduce((s,b)=>s+effectiveAmount(b,'actual',state.displayCurrency),0);
-    const unaccounted = totalCost - accountedFor;
-    const nextDue = vendorNextDue(v.id);
-    const paymentRows = payments.map(b=>{
-      return `<tr>
-        <td><input type="text" class="cell-input cell-input-wide" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}" placeholder="e.g. Deposit" list="paymentTagSuggestions"></td>
-        <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
-        <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div></td>
-        <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div></td>
-        <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
-        <td class="statuscell">${dueDateBadge(b.dueDate, b.paid)}</td>
-        <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Comment…"></td>
-        <td class="rmcell"><button class="rmbtn rmx" data-rmbudget="${b.id}" title="Remove" aria-label="Remove">✕</button></td>
-      </tr>`;
-    }).join('');
-    return `<div class="info-card" data-vendorid="${v.id}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:200px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div class="reorder-btns">
-              <button type="button" class="reorder-btn" data-movevendor="${v.id}" data-dir="-1" ${idx===0?'disabled':''} title="Move up">▲</button>
-              <button type="button" class="reorder-btn" data-movevendor="${v.id}" data-dir="1" ${idx===shown.length-1?'disabled':''} title="Move down">▼</button>
-            </div>
-            <input type="text" class="cell-input" data-vendorfield="name" data-vendorid="${v.id}" value="${escAttr(v.name)}" style="font-family:'Fraunces',serif;font-size:17px;font-weight:600;border:none;background:none;padding:2px 0;flex:1;">
-          </div>
-          <div style="display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap;">
-            <div style="max-width:140px;">
-              <input type="text" class="cell-input" data-vendorfield="category" data-vendorid="${v.id}" value="${escAttr(v.category)}" placeholder="Category">
-            </div>
-            <div>
-              <div style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Total cost</div>
-              <div class="dual-cur">
-                <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostGbp" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostGbp)}"></div>
-                <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostLkr" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostLkr)}"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="text-align:right;min-width:180px;">
-          <div style="font-size:11px;color:var(--ink-soft);">${fmtCurrencyAmount(paidSoFar)} paid</div>
-          ${totalCost>0 && Math.abs(unaccounted)>1 ? `<div style="font-size:10.5px;color:var(--flag);margin-top:2px;">${unaccounted>0?fmtCurrencyAmount(unaccounted)+' not yet scheduled':fmtCurrencyAmount(-unaccounted)+' over total cost'}</div>` : ''}
-          ${nextDue ? `<div style="margin-top:4px;">${dueDateBadge(nextDue, false)}</div>` : ''}
-        </div>
-        <button class="rmbtn rmx" data-rmvendor="${v.id}" title="Delete vendor" aria-label="Delete vendor">✕</button>
+/* ---- Vendors: list rows + slide-out detail drawer (same pattern as Venues) ---- */
+function vendorSummary(v){
+  const cur = state.displayCurrency;
+  const payments = vendorPayments(v.id);
+  const total = vendorTotalCostDisplay(v, cur);
+  const accounted = payments.reduce((s,b)=>s+effectiveAmount(b,'actual',cur),0);
+  const paid = payments.filter(b=>b.paid).reduce((s,b)=>s+effectiveAmount(b,'actual',cur),0);
+  return {
+    v, id:v.id, name:v.name||'', category:v.category||'', contact:v.contactName||'',
+    total, paid, unscheduled: total-accounted,
+    nextDue: vendorNextDue(v.id),
+    paymentCount: payments.length, paidCount: payments.filter(b=>b.paid).length
+  };
+}
+function vendorUnscheduledText(r){
+  if(!(r.total>0) || Math.abs(r.unscheduled)<=1) return '';
+  return r.unscheduled>0 ? fmtCurrencyAmount(r.unscheduled) : 'Over by '+fmtCurrencyAmount(-r.unscheduled);
+}
+function vendorPaymentsText(r){ return r.paymentCount ? `${r.paidCount} of ${r.paymentCount} paid` : ''; }
+CF.register('vendors', {
+  rows:()=>vendors.map(vendorSummary),
+  rerender:()=>renderVendors(),
+  cols:{
+    name:{get:r=>r.name},
+    category:{get:r=>r.category},
+    contact:{get:r=>r.contact},
+    total:{get:r=>r.total>0?fmtCurrencyAmount(r.total):'', sort:r=>r.total, type:'num', volatile:true},
+    paid:{get:r=>r.paid>0?fmtCurrencyAmount(r.paid):'', sort:r=>r.paid, type:'num', volatile:true},
+    unscheduled:{get:r=>vendorUnscheduledText(r), sort:r=>r.unscheduled, type:'num', volatile:true},
+    nextDue:{get:r=>formatDateDMY(r.nextDue), sort:r=>r.nextDue||'', type:'date'},
+    payments:{get:r=>vendorPaymentsText(r), sort:r=>r.paidCount/(r.paymentCount||1)}
+  }
+});
+function visibleVendorRows(){
+  const q = (state.vendorSearch||'').toLowerCase();
+  const rows = vendors.filter(v=>!q || (v.name||'').toLowerCase().includes(q))
+    .slice().sort((a,b)=>a.sortOrder-b.sortOrder)
+    .map(vendorSummary)
+    .filter(r=>CF.matches('vendors', r));
+  return CF.sortRows('vendors', rows);
+}
+function visibleVendors(){ return visibleVendorRows().map(r=>r.v); }
+function openVendorDrawer(){
+  document.getElementById('vendorDetailPane').classList.add('show');
+  document.getElementById('vendorDrawerBackdrop').classList.add('show');
+}
+function closeVendorDrawer(){
+  document.getElementById('vendorDetailPane').classList.remove('show');
+  document.getElementById('vendorDrawerBackdrop').classList.remove('show');
+  state.activeVendorId = null;
+  document.querySelectorAll('[data-vendorrow].selectedrow').forEach(tr=>tr.classList.remove('selectedrow'));
+}
+document.getElementById('vendorDrawerBackdrop').addEventListener('click', closeVendorDrawer);
+async function deleteVendor(id){
+  if(!confirm("Delete this vendor? Its payment lines will be kept in the Budget tab, just unlinked.")) return;
+  await sb.from('vendors').delete().eq('id', id);
+  if(state.activeVendorId===id) closeVendorDrawer();
+  await loadVendors(); await loadBudget(); renderVendors();
+}
+function vendorPaymentRowHTML(b){
+  return `<tr>
+    <td><input type="text" class="cell-input cell-input-wide" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}" placeholder="e.g. Deposit" list="paymentTagSuggestions"></td>
+    <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
+    <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div></td>
+    <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div></td>
+    <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
+    <td class="statuscell">${dueDateBadge(b.dueDate, b.paid)}</td>
+    <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Comment…"></td>
+    <td class="rmcell"><button class="rmbtn rmx" data-rmbudget="${b.id}" title="Remove" aria-label="Remove">✕</button></td>
+  </tr>`;
+}
+function renderVendorDrawer(){
+  const pane = document.getElementById('vendorDetailPane');
+  const v = vendors.find(x=>x.id===state.activeVendorId);
+  if(!v) return;
+  const r = vendorSummary(v);
+  const payments = vendorPayments(v.id);
+  const focus = captureFocus();
+  const scrollTop = pane.scrollTop;
+  const unsched = vendorUnscheduledText(r);
+  pane.innerHTML = `
+    <button class="back-link" id="vdCloseBtn">✕ Close</button>
+    <div class="vd-detail">
+      <input type="text" class="vd-title" data-vendorfield="name" data-vendorid="${v.id}" value="${escAttr(v.name)}" placeholder="Vendor name">
+      <div class="vd-summary">
+        <span>${fmtCurrencyAmount(r.paid)} paid</span>
+        ${unsched ? `<span style="color:var(--flag);">${r.unscheduled>0 ? unsched+' not yet scheduled' : unsched.replace('Over by ','')+' over total cost'}</span>` : ''}
+        ${r.nextDue ? dueDateBadge(r.nextDue, false) : ''}
       </div>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">
+        <div style="width:200px;">
+          <div class="vd-label">Category</div>
+          <input type="text" class="cell-input" data-vendorfield="category" data-vendorid="${v.id}" value="${escAttr(v.category)}" placeholder="Category">
+        </div>
+        <div>
+          <div class="vd-label">Total cost</div>
+          <div class="dual-cur">
+            <div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostGbp" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostGbp)}"></div>
+            <div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-vendornumfield="totalCostLkr" data-vendorid="${v.id}" value="${formatNumInput(v.totalCostLkr)}"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
         <input type="text" class="cell-input" data-vendorfield="contactName" data-vendorid="${v.id}" value="${escAttr(v.contactName)}" placeholder="Contact name" style="flex:1;min-width:140px;">
         <input type="text" class="cell-input" data-vendorfield="contactInfo" data-vendorid="${v.id}" value="${escAttr(v.contactInfo)}" placeholder="Email / phone" style="flex:1;min-width:140px;">
       </div>
       <input type="text" class="cell-input" data-vendorfield="notes" data-vendorid="${v.id}" value="${escAttr(v.notes)}" placeholder="Notes" style="width:100%;margin-top:8px;">
-      ${payments.length ? `<div class="tablewrap" style="margin-top:14px;"><table class="plain-table pay-table">
+      <h3 style="font-size:16px;margin:22px 0 4px;">Payments</h3>
+      ${payments.length ? `<div class="tablewrap"><table class="plain-table pay-table">
         <tr><th>Tag</th><th>Due date</th><th>Amount GBP</th><th>Amount LKR</th><th>Paid</th><th>Status</th><th>Comments</th><th></th></tr>
-        ${paymentRows}
-      </table></div>` : '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:12px;">No payments logged yet.</p>'}
-      <button class="btn ghost small" data-addpayment="${v.id}" style="margin-top:12px;width:auto;">+ Add payment</button>
+        ${payments.map(vendorPaymentRowHTML).join('')}
+      </table></div>` : '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:6px;">No payments logged yet.</p>'}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+        <button class="btn ghost small" data-addpayment="${v.id}" style="width:auto;">+ Add payment</button>
+        <button class="btn danger small" data-rmvendor="${v.id}" style="width:auto;">Delete vendor</button>
+      </div>
+      <datalist id="paymentTagSuggestions"><option value="Deposit"><option value="Balance"><option value="Final payment"></datalist>
     </div>`;
-  }).join('');
-  document.getElementById('tab-vendors').innerHTML = `
-    <div class="section-head">
-      <h2 style="font-size:22px;">Vendors</h2>
-      <div class="searchbox"><input id="vendorSearch" placeholder="Search vendor name…" value="${state.vendorSearch}"></div>
-      <button class="btn" id="addVendorBtn" style="width:auto;">+ Add vendor</button>
-    </div>
-    <p class="result-count">Showing ${shown.length} of ${vendors.length} vendors — use ▲▼ to reorder</p>
-    ${cards || '<div class="empty">No vendors added yet.</div>'}
-    <datalist id="paymentTagSuggestions">
-      <option value="Deposit"><option value="Balance"><option value="Final payment">
-    </datalist>
-  `;
-  document.querySelectorAll('[data-movevendor]').forEach(btn=>btn.addEventListener('click', ()=>{
-    moveVendor(btn.dataset.movevendor, +btn.dataset.dir);
-  }));
-  document.getElementById('addVendorBtn').addEventListener('click', ()=>vendorOverlay.classList.add('show'));
-  document.getElementById('vendorSearch').addEventListener('input', e=>{ state.vendorSearch=e.target.value; renderVendors(); });
-  const vendorsTabEl = document.getElementById('tab-vendors');
-  vendorsTabEl.querySelectorAll('[data-field][data-budgetid]').forEach(el=>el.addEventListener('change', ()=>{
+  pane.scrollTop = scrollTop;
+  document.getElementById('vdCloseBtn').addEventListener('click', closeVendorDrawer);
+  pane.querySelectorAll('[data-field][data-budgetid]').forEach(el=>el.addEventListener('change', ()=>{
     updateBudgetField(el.dataset.budgetid, el.dataset.field, el.value.trim());
   }));
-  vendorsTabEl.querySelectorAll('[data-budgetfield]').forEach(inp=>inp.addEventListener('change', ()=>{
+  pane.querySelectorAll('[data-budgetfield]').forEach(inp=>inp.addEventListener('change', ()=>{
     updateBudgetField(inp.dataset.budgetid, inp.dataset.budgetfield, parseNumInput(inp.value));
   }));
-  vendorsTabEl.querySelectorAll('.paid-check').forEach(cb=>cb.addEventListener('change', ()=>{
+  pane.querySelectorAll('.paid-check').forEach(cb=>cb.addEventListener('change', ()=>{
     updateBudgetField(cb.dataset.budgetid, 'paid', cb.checked);
   }));
-  vendorsTabEl.querySelectorAll('[data-rmbudget]').forEach(b=>b.addEventListener('click', async ()=>{
+  pane.querySelectorAll('[data-rmbudget]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('Remove this payment line?')) return;
     await sb.from('budget_items').delete().eq('id', b.dataset.rmbudget); await loadBudget(); renderVendors();
   }));
-  vendorsTabEl.querySelectorAll('[data-vendorfield]').forEach(el=>el.addEventListener('change', ()=>{
+  pane.querySelectorAll('[data-vendorfield]').forEach(el=>el.addEventListener('change', ()=>{
     updateVendorField(el.dataset.vendorid, el.dataset.vendorfield, el.value.trim());
   }));
-  vendorsTabEl.querySelectorAll('[data-vendornumfield]').forEach(inp=>inp.addEventListener('change', ()=>{
+  pane.querySelectorAll('[data-vendornumfield]').forEach(inp=>inp.addEventListener('change', ()=>{
     updateVendorField(inp.dataset.vendorid, inp.dataset.vendornumfield, parseNumInput(inp.value));
   }));
-  vendorsTabEl.querySelectorAll('[data-rmvendor]').forEach(b=>b.addEventListener('click', async ()=>{
-    if(!confirm("Delete this vendor? Its payment lines will be kept in the Budget tab, just unlinked.")) return;
-    await sb.from('vendors').delete().eq('id', b.dataset.rmvendor); await loadVendors(); await loadBudget(); renderVendors();
+  pane.querySelectorAll('[data-rmvendor]').forEach(b=>b.addEventListener('click', ()=>deleteVendor(b.dataset.rmvendor)));
+  pane.querySelectorAll('[data-addpayment]').forEach(b=>b.addEventListener('click', ()=>addVendorPayment(b.dataset.addpayment)));
+  restoreFocus(focus);
+}
+function renderVendors(){
+  const rows = visibleVendorRows();
+  const sortActive = !!(CF.sorts.vendors && CF.sorts.vendors.key);
+  const body = rows.map((r,idx)=>`<tr class="datarow ${state.activeVendorId===r.id?'selectedrow':''}" data-vendorrow="${r.id}">
+      <td onclick="event.stopPropagation()" style="width:44px;">
+        <div class="reorder-btns">
+          <button type="button" class="reorder-btn" data-movevendor="${r.id}" data-dir="-1" ${(sortActive||idx===0)?'disabled':''} title="${sortActive?'Clear the column sort to reorder':'Move up'}">▲</button>
+          <button type="button" class="reorder-btn" data-movevendor="${r.id}" data-dir="1" ${(sortActive||idx===rows.length-1)?'disabled':''} title="${sortActive?'Clear the column sort to reorder':'Move down'}">▼</button>
+        </div>
+      </td>
+      <td class="namecell"><span class="name-text">${escAttr(r.name)}</span></td>
+      <td>${escAttr(r.category)}</td>
+      <td>${escAttr(r.contact)}</td>
+      <td class="numcell"><b>${r.total>0?fmtCurrencyAmount(r.total):'—'}</b></td>
+      <td class="numcell">${r.paid>0?fmtCurrencyAmount(r.paid):'—'}</td>
+      <td class="numcell">${vendorUnscheduledText(r) ? (r.unscheduled>0 ? vendorUnscheduledText(r) : `<span class="over">${vendorUnscheduledText(r)}</span>`) : '—'}</td>
+      <td>${r.nextDue ? dueDateBadge(r.nextDue, false) : (r.paymentCount && r.paidCount===r.paymentCount ? dueDateBadge(null, true) : '—')}</td>
+      <td>${r.paymentCount ? `${r.paidCount} of ${r.paymentCount} paid` : '<span style="color:var(--ink-soft);">No payments</span>'}</td>
+      <td onclick="event.stopPropagation()"><button class="rmbtn rmx" data-rmvendor="${r.id}" title="Delete vendor" aria-label="Delete vendor">✕</button></td>
+    </tr>`).join('');
+  document.getElementById('tab-vendors').innerHTML = `
+    <div class="section-head">
+      <h2 style="font-size:22px;">Vendors</h2>
+      <div class="searchbox"><input id="vendorSearch" placeholder="Search vendor name…" value="${escAttr(state.vendorSearch)}"></div>
+      <button class="btn" id="addVendorBtn" style="width:auto;">+ Add vendor</button>
+    </div>
+    <p class="result-count">Showing ${rows.length} of ${vendors.length} vendors — click a vendor for details, use ▲▼ to reorder${CF.clearLink('vendors')}</p>
+    <div class="tablewrap"><table class="vtable vendor-table">
+      <tr><th></th>${CF.th('vendors','name','Vendor')}${CF.th('vendors','category','Category')}${CF.th('vendors','contact','Contact')}${CF.th('vendors','total','Total cost')}${CF.th('vendors','paid','Paid so far')}${CF.th('vendors','unscheduled','Not yet scheduled')}${CF.th('vendors','nextDue','Next payment')}${CF.th('vendors','payments','Payments')}<th></th></tr>
+      ${body || `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--ink-soft);">${vendors.length ? 'No vendors match these filters.' : 'No vendors added yet.'}</td></tr>`}
+    </table></div>`;
+  const tabEl = document.getElementById('tab-vendors');
+  tabEl.querySelectorAll('[data-movevendor]').forEach(btn=>btn.addEventListener('click', ()=>{
+    moveVendor(btn.dataset.movevendor, +btn.dataset.dir);
   }));
-  vendorsTabEl.querySelectorAll('[data-addpayment]').forEach(b=>b.addEventListener('click', ()=>addVendorPayment(b.dataset.addpayment)));
+  tabEl.querySelectorAll('[data-vendorrow]').forEach(tr=>tr.addEventListener('click', ()=>{
+    state.activeVendorId = tr.dataset.vendorrow;
+    tabEl.querySelectorAll('[data-vendorrow]').forEach(x=>x.classList.toggle('selectedrow', x===tr));
+    renderVendorDrawer();
+    openVendorDrawer();
+  }));
+  tabEl.querySelectorAll('[data-rmvendor]').forEach(b=>b.addEventListener('click', ()=>deleteVendor(b.dataset.rmvendor)));
+  document.getElementById('addVendorBtn').addEventListener('click', ()=>vendorOverlay.classList.add('show'));
+  const vs = document.getElementById('vendorSearch');
+  vs.addEventListener('input', e=>{
+    state.vendorSearch = e.target.value; renderVendors();
+    const el = document.getElementById('vendorSearch'); el.focus(); el.setSelectionRange(el.value.length, el.value.length);
+  });
+  if(state.activeVendorId) renderVendorDrawer();
 }
 const vendorOverlay = document.getElementById('vendorOverlay');
 document.getElementById('cancelVendor').addEventListener('click', ()=>vendorOverlay.classList.remove('show'));
