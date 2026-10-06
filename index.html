@@ -382,6 +382,9 @@ select.attend-maybe{background-color:var(--paper);}
 .cl-item input[type=checkbox]{width:17px;height:17px;accent-color:var(--ink);}
 .cl-item.done span{text-decoration:line-through;color:var(--ink-soft);}
 .cl-item .rmbtn{margin-left:auto;}
+.rmbtn.rmx{font-size:14px;line-height:1;padding:4px 6px;border-radius:5px;}
+.rmbtn.rmx:hover{background:var(--flag-soft);}
+.plain-table td.rmcell{width:34px;padding-left:4px;padding-right:10px;}
 
 /* moodboard */
 .mood-grid{columns:4 220px;column-gap:14px;}
@@ -2910,7 +2913,7 @@ function renderGuests(){
       <td class="checkcell"><input type="checkbox" class="savethedate-check" data-guestid="${g.id}" ${g.save_the_date_sent?'checked':''}></td>
       <td class="checkcell"><input type="checkbox" class="confirm-check" data-guestid="${g.id}" ${g.confirmed?'checked':''}></td>
       <td><input type="text" class="cell-input" data-field="notes" data-guestid="${g.id}" value="${escAttr(g.notes||'')}" placeholder="Add a note…"></td>
-      <td><button class="rmbtn" data-rmguest="${g.id}">Remove</button></td>
+      <td class="rmcell"><button class="rmbtn rmx" data-rmguest="${g.id}" title="Remove guest" aria-label="Remove guest">✕</button></td>
     </tr>`).join('');
   document.getElementById('tab-guests').innerHTML = `
     <div class="section-head">
