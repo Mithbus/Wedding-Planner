@@ -340,6 +340,27 @@ select.attend-maybe{background-color:var(--paper);}
 .reorder-btn:hover:not(:disabled){color:var(--ink);border-color:var(--ink-soft);}
 .reorder-btn:disabled{opacity:.35;cursor:default;}
 
+/* Excel-style column filter: header button + popover */
+.cf-btn{background:none;border:1px solid transparent;border-radius:4px;padding:0 4px;margin-left:5px;font-size:10px;line-height:16px;color:var(--ink-soft);cursor:pointer;vertical-align:middle;}
+.cf-btn:hover{border-color:var(--line);background:var(--paper-raised);color:var(--ink);}
+.cf-btn.on{background:var(--ink);border-color:var(--ink);color:var(--paper-raised);}
+.cf-pop{position:fixed;z-index:200;width:268px;background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(33,31,26,.22);padding:6px;font-family:'Inter',sans-serif;font-size:13px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink);display:flex;flex-direction:column;max-height:calc(100vh - 16px);}
+.cf-item{display:block;width:100%;text-align:left;background:none;border:none;padding:8px 10px;border-radius:6px;font-size:13px;color:var(--ink);}
+.cf-item:hover:not(:disabled){background:var(--paper);}
+.cf-item:disabled{color:var(--ink-soft);opacity:.5;cursor:default;}
+.cf-sep{height:1px;background:var(--line);margin:5px 2px;flex-shrink:0;}
+.cf-search{width:calc(100% - 8px);margin:4px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--paper);font-size:13px;font-family:'Inter',sans-serif;color:var(--ink);flex-shrink:0;}
+.cf-list{overflow-y:auto;min-height:60px;max-height:210px;margin:2px 4px;border:1px solid var(--line);border-radius:6px;background:var(--paper);padding:4px 8px;}
+.cf-list label{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer;text-transform:none;letter-spacing:0;}
+.cf-list input{width:15px;height:15px;accent-color:var(--ink);margin:0;flex-shrink:0;}
+.cf-list .cf-empty{color:var(--ink-soft);padding:6px 0;}
+.cf-actions{display:flex;justify-content:flex-end;gap:8px;padding:8px 4px 4px;flex-shrink:0;}
+.cf-actions button{padding:6px 16px;border-radius:6px;font-size:12.5px;font-weight:600;border:1px solid var(--ink);}
+.cf-ok{background:var(--ink);color:var(--paper-raised);}
+.cf-ok:disabled{opacity:.4;cursor:default;}
+.cf-cancel{background:none;color:var(--ink);}
+.cf-clear{cursor:pointer;color:var(--info);text-decoration:underline;margin-left:8px;}
+
 .amt-wrap{position:relative;display:inline-block;width:100%;min-width:100px;box-sizing:border-box;}
 .amt-wrap::before{content:attr(data-symbol);position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:13px;pointer-events:none;}
 .amt-wrap input{padding-left:26px !important;}
@@ -993,6 +1014,174 @@ let state = {
   calMonth: new Date().getMonth(), calYear: new Date().getFullYear(), calSelectedDate:null,
   moodCategory:'all'
 };
+/* ================= EXCEL-STYLE COLUMN FILTERS ================= */
+/* Each table registers {rows, cols:{key:{get, sort?, type?, volatile?}}, rerender, sort?}.
+   Filters are stored as the set of EXCLUDED display values per column, so rows added later still show. */
+const CF = {
+  tables:{}, filters:{}, sorts:{}, pop:null,
+  register(id, cfg){ this.tables[id]=cfg; if(!this.filters[id]) this.filters[id]={}; },
+  val(id, key, row){ const v=this.tables[id].cols[key].get(row); return v==null ? '' : String(v); },
+  matches(id, row){
+    const f=this.filters[id];
+    for(const key in f){ if(f[key].has(this.val(id,key,row))) return false; }
+    return true;
+  },
+  activeCount(id){ return Object.keys(this.filters[id]).length; },
+  clearAll(id){ this.filters[id]={}; this.tables[id].rerender(); },
+  clearVolatile(){
+    Object.keys(this.tables).forEach(id=>{
+      Object.keys(this.tables[id].cols).forEach(k=>{ if(this.tables[id].cols[k].volatile) delete this.filters[id][k]; });
+    });
+  },
+  clearLink(id){
+    const n=this.activeCount(id);
+    return n ? `<a class="cf-clear" data-cfclear="${id}">Clear ${n} column filter${n>1?'s':''}</a>` : '';
+  },
+  cmp(a, b){
+    const ea=a==null||a==='', eb=b==null||b==='';
+    if(ea && eb) return 0;
+    if(ea) return 1;
+    if(eb) return -1;
+    if(typeof a==='number' && typeof b==='number') return a-b;
+    return String(a).localeCompare(String(b), undefined, {numeric:true, sensitivity:'base'});
+  },
+  sortState(id){
+    const t=this.tables[id];
+    return t.sort ? t.sort.get() : (this.sorts[id] || {key:'', dir:'asc'});
+  },
+  setSort(id, key, dir){
+    const t=this.tables[id];
+    if(t.sort) t.sort.set(key, dir);
+    else { this.sorts[id] = {key, dir}; t.rerender(); }
+  },
+  /* Only for tables with no built-in sort (budget, funding sources) */
+  sortRows(id, rows){
+    const s=this.sorts[id];
+    if(!s || !s.key) return rows;
+    const col=this.tables[id].cols[s.key], dir=s.dir==='desc'?-1:1;
+    const sv=r=>col.sort ? col.sort(r) : col.get(r);
+    return rows.slice().sort((x,y)=>{
+      const a=sv(x), b=sv(y);
+      const ea=a==null||a==='', eb=b==null||b==='';
+      if(ea||eb) return this.cmp(a,b);
+      return this.cmp(a,b)*dir;
+    });
+  },
+  th(id, key, label, o){
+    o = o || {};
+    const s=this.sortState(id);
+    const sorted = s.key===key;
+    const arrow = sorted ? `<span class="sort-arrow">${s.dir==='asc'?'▲':'▼'}</span>` : '';
+    const on = this.filters[id][key] ? 'on' : '';
+    return `<th class="${o.cls||''} ${sorted?'active-sort':''}" ${o.attrs||''} ${o.style?`style="${o.style}"`:''}>${label}${arrow}<button type="button" class="cf-btn ${on}" data-cftable="${id}" data-cfkey="${key}" data-cflabel="${escAttr(label)}" title="Filter / sort this column">▾</button></th>`;
+  },
+  close(){ if(this.pop){ this.pop.el.remove(); this.pop=null; } },
+  open(btn){
+    this.close();
+    const id=btn.dataset.cftable, key=btn.dataset.cfkey, label=btn.dataset.cflabel;
+    const t=this.tables[id], col=t.cols[key];
+    const sortVal=new Map();
+    t.rows().forEach(r=>{ const v=this.val(id,key,r); if(!sortVal.has(v)) sortVal.set(v, col.sort ? col.sort(r) : v); });
+    const all=[...sortVal.keys()].sort((a,b)=>this.cmp(sortVal.get(a), sortVal.get(b)));
+    const excluded=this.filters[id][key] || new Set();
+    const checked=new Set(all.filter(v=>!excluded.has(v)));
+    const s=this.sortState(id);
+    const names = col.type==='num' ? ['Sort smallest to largest','Sort largest to smallest']
+                : col.type==='date' ? ['Sort oldest to newest','Sort newest to oldest']
+                : ['Sort A to Z','Sort Z to A'];
+    const el=document.createElement('div');
+    el.className='cf-pop'; el.id='cfPop';
+    const mkItem=(text, act, disabled)=>{
+      const b=document.createElement('button'); b.type='button'; b.className='cf-item'; b.textContent=text; b.dataset.cfa=act; b.disabled=!!disabled; return b;
+    };
+    el.append(mkItem(names[0],'asc'), mkItem(names[1],'desc'));
+    if(s.key===key) el.append(mkItem('Clear sort','clearsort'));
+    const sep=document.createElement('div'); sep.className='cf-sep'; el.append(sep);
+    el.append(mkItem(`Clear filter from "${label}"`, 'clearfilter', !this.filters[id][key]));
+    const search=document.createElement('input'); search.type='text'; search.className='cf-search'; search.placeholder='Search'; el.append(search);
+    const list=document.createElement('div'); list.className='cf-list'; el.append(list);
+    const actions=document.createElement('div'); actions.className='cf-actions';
+    const ok=document.createElement('button'); ok.type='button'; ok.className='cf-ok'; ok.textContent='OK';
+    const cancel=document.createElement('button'); cancel.type='button'; cancel.className='cf-cancel'; cancel.textContent='Cancel';
+    actions.append(ok, cancel); el.append(actions);
+
+    const mkRow=(text, isChecked, onChange)=>{
+      const lab=document.createElement('label');
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=isChecked;
+      cb.addEventListener('change', ()=>onChange(cb.checked));
+      const sp=document.createElement('span'); sp.textContent=text;
+      lab.append(cb, sp); return {lab, cb};
+    };
+    const renderList=()=>{
+      const q=search.value.trim().toLowerCase();
+      const visible=all.filter(v=>(v===''?'(blanks)':v.toLowerCase()).includes(q));
+      list.replaceChildren();
+      if(!visible.length){ const d=document.createElement('div'); d.className='cf-empty'; d.textContent='No matches'; list.append(d); }
+      else {
+        const nChecked=visible.filter(v=>checked.has(v)).length;
+        const sa=mkRow(q?'(Select all search results)':'(Select All)', nChecked===visible.length, on=>{
+          visible.forEach(v=>{ if(on) checked.add(v); else checked.delete(v); });
+          renderList();
+        });
+        sa.cb.indeterminate = nChecked>0 && nChecked<visible.length;
+        list.append(sa.lab);
+        visible.forEach(v=>{
+          list.append(mkRow(v===''?'(Blanks)':v, checked.has(v), on=>{
+            if(on) checked.add(v); else checked.delete(v);
+            const n=visible.filter(x=>checked.has(x)).length;
+            const first=list.querySelector('input');
+            first.checked = n===visible.length; first.indeterminate = n>0 && n<visible.length;
+            ok.disabled = checked.size===0;
+          }).lab);
+        });
+      }
+      ok.disabled = checked.size===0;
+    };
+    search.addEventListener('input', renderList);
+    renderList();
+
+    ok.addEventListener('click', ()=>{
+      const ex=new Set(all.filter(v=>!checked.has(v)));
+      if(ex.size) this.filters[id][key]=ex; else delete this.filters[id][key];
+      this.close(); t.rerender();
+    });
+    cancel.addEventListener('click', ()=>this.close());
+    el.addEventListener('click', e=>{
+      const b=e.target.closest('[data-cfa]');
+      if(!b || b.disabled) return;
+      const act=b.dataset.cfa;
+      this.close();
+      if(act==='asc'||act==='desc') this.setSort(id, key, act);
+      else if(act==='clearsort') this.setSort(id, '', 'asc');
+      else if(act==='clearfilter'){ delete this.filters[id][key]; t.rerender(); }
+    });
+    document.body.append(el);
+    const r=btn.getBoundingClientRect();
+    let left=Math.min(r.left, window.innerWidth-el.offsetWidth-8);
+    let top=r.bottom+4;
+    if(top+el.offsetHeight > window.innerHeight-8) top=Math.max(8, window.innerHeight-el.offsetHeight-8);
+    el.style.left=Math.max(8,left)+'px'; el.style.top=top+'px';
+    this.pop={el, id, key};
+    search.focus();
+  }
+};
+document.addEventListener('click', e=>{
+  const btn=e.target.closest('.cf-btn');
+  if(btn){
+    e.stopPropagation(); e.preventDefault();
+    const same = CF.pop && CF.pop.id===btn.dataset.cftable && CF.pop.key===btn.dataset.cfkey;
+    CF.close();
+    if(!same) CF.open(btn);
+    return;
+  }
+  const clr=e.target.closest('[data-cfclear]');
+  if(clr){ e.stopPropagation(); CF.close(); CF.clearAll(clr.dataset.cfclear); return; }
+  if(CF.pop && !e.target.closest('#cfPop')) CF.close();
+}, true);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') CF.close(); });
+window.addEventListener('scroll', e=>{ if(CF.pop && !CF.pop.el.contains(e.target)) CF.close(); }, true);
+window.addEventListener('resize', ()=>CF.close());
+
 const MOOD_CATEGORIES = ["Venue","Décor & Styling","Attire & Beauty","Flowers","Cake & Catering","Colour Palette","Photography Style","Stationery","Other"];
 
 function partnerName(slot){ if(!wedding) return slot===1?'Partner 1':'Partner 2'; return slot===1?(wedding.partner1_name||'Partner 1'):(wedding.partner2_name||'Partner 2'); }
@@ -1040,6 +1229,7 @@ document.querySelectorAll('#currencyToggle [data-currency]').forEach(btn=>btn.ad
   const c = btn.dataset.currency;
   if(state.displayCurrency===c) return;
   state.displayCurrency = c;
+  CF.clearVolatile();
   syncCurrencyToggleUI();
   saveWeddingField({display_currency:c});
   renderActive();
@@ -1789,24 +1979,43 @@ const SORT_GETTERS = {
   capTravel:r=>r.capTravel, cardiffTime:r=>r.cardiffTime, hartleburyTime:r=>r.hartleburyTime
 };
 const SORT_DEFAULT_DIR = {cost:'asc', perHead:'asc', claude:'desc', p1:'desc', p2:'desc', name:'asc', country:'asc', location:'asc', status:'asc', starred:'desc', capTravel:'asc', cardiffTime:'asc', hartleburyTime:'asc'};
-function compareRows(a, b, key){
+CF.register('venues', {
+  rows:()=>baseVenueList().map(computeRow),
+  rerender:()=>renderVenueList(),
+  sort:{get:()=>({key:state.sortKey, dir:state.sortDir}), set:(k,d)=>{ state.sortKey=k; state.sortDir=d; renderVenueList(); }},
+  cols:{
+    starred:{get:r=>r.starred?'★ Shortlisted':'Not shortlisted', sort:r=>r.starred?1:0},
+    name:{get:r=>r.name},
+    country:{get:r=>r.countryLabel},
+    location:{get:r=>r.location},
+    capTravel:{get:r=>r.capTravel},
+    cardiffTime:{get:r=>r.cardiffTime==='—'?'':r.cardiffTime},
+    hartleburyTime:{get:r=>r.hartleburyTime==='—'?'':r.hartleburyTime},
+    cost:{get:r=>fmt(r.total), sort:r=>r.total, type:'num', volatile:true},
+    perHead:{get:r=>fmt(r.perHead), sort:r=>r.perHead, type:'num', volatile:true},
+    status:{get:r=>r.statusLabel},
+    claude:{get:r=>r.claude!=null?r.claude.toFixed(1):'', sort:r=>r.claude, type:'num'}
+  }
+});
+function compareRows(a, b, key, dir){
+  dir = dir || 1;
   const getter = SORT_GETTERS[key];
   if(!getter) return 0;
   const va = getter(a), vb = getter(b);
   const aEmpty = va==null || va==='', bEmpty = vb==null || vb==='';
   if(aEmpty && bEmpty) return 0;
-  if(aEmpty) return 1;
+  if(aEmpty) return 1;   // blanks always last, whichever direction
   if(bEmpty) return -1;
-  if(typeof va==='number' && typeof vb==='number') return va-vb;
+  if(typeof va==='number' && typeof vb==='number') return (va-vb)*dir;
   const na = parseFloat(va), nb = parseFloat(vb);
-  if(!isNaN(na) && !isNaN(nb)) return na-nb;
-  return String(va).localeCompare(String(vb));
+  if(!isNaN(na) && !isNaN(nb)) return (na-nb)*dir;
+  return String(va).localeCompare(String(vb))*dir;
 }
 function visibleRows(){
   let rows = baseVenueList().map(computeRow);
-  rows = rows.filter(r=>matchesSearch(r, state.venueSearch) && matchesColFilters(r));
+  rows = rows.filter(r=>matchesSearch(r, state.venueSearch) && matchesColFilters(r) && CF.matches('venues', r));
   const dir = state.sortDir==='desc' ? -1 : 1;
-  rows.sort((a,b)=>compareRows(a,b,state.sortKey)*dir);
+  rows.sort((a,b)=>compareRows(a,b,state.sortKey,dir));
   return rows;
 }
 function rowMenuHTML(id, kind, flagged, archived){
@@ -1845,9 +2054,7 @@ function cardHTML(r){
   </div>`;
 }
 function sortTh(label, key, extraStyle){
-  const active = state.sortKey===key;
-  const arrow = active ? `<span class="sort-arrow">${state.sortDir==='asc'?'▲':'▼'}</span>` : '';
-  return `<th class="sortable ${active?'active-sort':''}" data-sortkey="${key}" ${extraStyle?`style="${extraStyle}"`:''}>${label}${arrow}</th>`;
+  return CF.th('venues', key, label, {cls:'sortable', attrs:`data-sortkey="${key}"`, style:extraStyle});
 }
 function rowHTML(rows){
   const showUkCols = state.vtab==='uk';
@@ -1910,7 +2117,7 @@ function renderVenueList(){
   renderResearchQueue();
   renderChips();
   const rows = visibleRows();
-  document.getElementById('venueResultCount').textContent = `Showing ${rows.length} of ${baseVenueList().length} venues`;
+  document.getElementById('venueResultCount').innerHTML = `Showing ${rows.length} of ${baseVenueList().length} venues${CF.clearLink('venues')}`;
   if(state.viewmode==='tiles'){
     document.getElementById('grid').style.display='grid';
     document.getElementById('tableViewWrap').style.display='none';
@@ -2639,10 +2846,14 @@ const GUEST_SORT_GETTERS = {
   confirmed: g=>g.confirmed?'Confirmed':'Not confirmed',
   notes: g=>g.notes||''
 };
+CF.register('guests', {
+  rows:()=>guests,
+  rerender:()=>renderGuests(),
+  sort:{get:()=>({key:state.guestSortKey, dir:state.guestSortDir}), set:(k,d)=>{ state.guestSortKey=k; state.guestSortDir=d; renderGuests(); }},
+  cols:Object.fromEntries(Object.entries({...GUEST_SORT_GETTERS, saveTheDate:g=>g.save_the_date_sent?'Yes':'No', confirmed:g=>g.confirmed?'Yes':'No'}).map(([k,f])=>[k,{get:f}]))
+});
 function guestSortTh(label, key){
-  const active = state.guestSortKey===key;
-  const arrow = active ? `<span class="sort-arrow">${state.guestSortDir==='asc'?'▲':'▼'}</span>` : '';
-  return `<th class="sortable ${active?'active-sort':''}" data-guestsortkey="${key}">${label}${arrow}</th>`;
+  return CF.th('guests', key, label, {cls:'sortable', attrs:`data-guestsortkey="${key}"`});
 }
 function setGuestSort(key){
   if(state.guestSortKey===key){ state.guestSortDir = state.guestSortDir==='asc'?'desc':'asc'; }
@@ -2654,6 +2865,7 @@ function visibleGuests(){
     if(state.guestSearch){ const q=state.guestSearch.toLowerCase(); if(!g.name.toLowerCase().includes(q) && !(g.contact||'').toLowerCase().includes(q)) return false; }
     if(state.guestFilters.side && g.side!==state.guestFilters.side) return false;
     if(state.guestFilters.attend && g.attend!==state.guestFilters.attend) return false;
+    if(!CF.matches('guests', g)) return false;
     return true;
   });
   if(state.guestSortKey){
@@ -2716,7 +2928,7 @@ function renderGuests(){
       <div class="dcard"><div class="dlabel">Confirmed guests</div><div class="dval">${confirmedCount}</div></div>
       <div class="dcard"><div class="dlabel">Likely yes / maybe / no</div><div class="dval" style="font-size:18px;">${yesCount} / ${maybeCount} / ${noCount}</div></div>
     </div>
-    <p class="result-count">Showing ${shown.length} of ${guests.length} guests</p>
+    <p class="result-count">Showing ${shown.length} of ${guests.length} guests${CF.clearLink('guests')}</p>
     ${selectedGuestIds.size ? `<div class="bulk-bar">
       <span class="bulk-count">${selectedGuestIds.size} selected</span>
       <select id="bulkSide"><option value="">Set whose guest…</option>${sideOptionsHTML(null)}</select>
@@ -2859,12 +3071,40 @@ document.getElementById('saveGuest').addEventListener('click', async ()=>{
 });
 
 /* ================= BUDGET TAB ================= */
+CF.register('budget', {
+  rows:()=>budgetItems,
+  rerender:()=>renderBudget(),
+  cols:{
+    cat:{get:b=>b.cat},
+    vendor:{get:b=>b.vendorId ? ((vendors.find(v=>v.id===b.vendorId)||{}).name||'') : ''},
+    actual:{get:b=>formatNumInput(b.actual), sort:b=>b.actual||0, type:'num'},
+    actualLkr:{get:b=>formatNumInput(b.actualLkr), sort:b=>b.actualLkr||0, type:'num'},
+    paid:{get:b=>b.paid?'Yes':'No'},
+    dueDate:{get:b=>formatDateDMY(b.dueDate), sort:b=>b.dueDate||'', type:'date'},
+    notes:{get:b=>b.notes||''}
+  }
+});
+CF.register('contrib', {
+  rows:()=>contributions,
+  rerender:()=>renderBudget(),
+  cols:{
+    contributor:{get:c=>c.contributor},
+    amountGbp:{get:c=>formatNumInput(c.amountGbp), sort:c=>c.amountGbp||0, type:'num'},
+    amountLkr:{get:c=>formatNumInput(c.amountLkr), sort:c=>c.amountLkr||0, type:'num'},
+    dateReceived:{get:c=>formatDateDMY(c.dateReceived), sort:c=>c.dateReceived||'', type:'date'},
+    notes:{get:c=>c.notes||''}
+  }
+});
 function visibleBudget(){
-  return budgetItems.filter(b=>{
+  const list = budgetItems.filter(b=>{
     if(state.budgetSearch && !b.cat.toLowerCase().includes(state.budgetSearch.toLowerCase())) return false;
     if(state.budgetFilters.country && b.country!==state.budgetFilters.country) return false;
-    return true;
+    return CF.matches('budget', b);
   });
+  return CF.sortRows('budget', list);
+}
+function visibleContributions(){
+  return CF.sortRows('contrib', contributions.filter(c=>CF.matches('contrib', c)));
 }
 function captureFocus(){
   const el = document.activeElement;
@@ -2906,6 +3146,7 @@ function renderBudget(){
   const overallBudget = wedding.overall_budget || 0;
   const overallBudgetDisplay = toDisplayAmount(overallBudget);
   const shown = visibleBudget();
+  const shownContribs = visibleContributions();
   const rows = shown.map(b=>{
     const vendorOptionsHTML = `<option value="">— None —</option>` + vendors.map(v=>`<option value="${v.id}" ${b.vendorId===v.id?'selected':''}>${escAttr(v.name)}</option>`).join('');
     return `<tr>
@@ -2941,18 +3182,19 @@ function renderBudget(){
       <div class="dcard"><div class="dlabel">Funds received (£)</div><div class="dval">${fmtCurrencyAmount(fundsReceivedGbp,'gbp')}</div><div class="dsub">from parents & other contributions — always in GBP</div></div>
       <div class="dcard"><div class="dlabel">Funding balance (£)</div><div class="dval" style="color:${fundingBalanceGbp<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(fundingBalanceGbp,'gbp')}</div><div class="dsub">received minus spent so far — always in GBP</div></div>
     </div>
-    <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines</p>
+    <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines${CF.clearLink('budget')}</p>
     <div class="tablewrap"><table class="plain-table">
-      <tr><th>Category</th><th>Vendor</th><th>Amount GBP</th><th>Amount LKR</th><th>Paid</th><th>Due date</th><th>Comments</th><th></th></tr>
+      <tr>${CF.th('budget','cat','Category')}${CF.th('budget','vendor','Vendor')}${CF.th('budget','actual','Amount GBP')}${CF.th('budget','actualLkr','Amount LKR')}${CF.th('budget','paid','Paid')}${CF.th('budget','dueDate','Due date')}${CF.th('budget','notes','Comments')}<th></th></tr>
       ${rows || '<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
     </table></div>
     <div class="section-head" style="margin-top:30px;">
       <h2 style="font-size:19px;">Funding sources</h2>
       <button class="btn ghost small" id="addContributionBtn" style="width:auto;">+ Add contribution</button>
     </div>
+    <p class="result-count">Showing ${shownContribs.length} of ${contributions.length} contributions${CF.clearLink('contrib')}</p>
     <div class="tablewrap"><table class="plain-table">
-      <tr><th>From</th><th>Amount GBP</th><th>Amount LKR</th><th>Date received</th><th>Notes</th><th></th></tr>
-      ${contributions.map(c=>`<tr>
+      <tr>${CF.th('contrib','contributor','From')}${CF.th('contrib','amountGbp','Amount GBP')}${CF.th('contrib','amountLkr','Amount LKR')}${CF.th('contrib','dateReceived','Date received')}${CF.th('contrib','notes','Notes')}<th></th></tr>
+      ${shownContribs.map(c=>`<tr>
         <td><input type="text" class="cell-input cell-input-wide" data-ctfield="contributor" data-ctid="${c.id}" value="${escAttr(c.contributor)}"></td>
         <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountGbp" data-ctid="${c.id}" value="${formatNumInput(c.amountGbp)}"></div></td>
         <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountLkr" data-ctid="${c.id}" value="${formatNumInput(c.amountLkr)}"></div></td>
