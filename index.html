@@ -3158,7 +3158,7 @@ function renderBudget(){
       <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
       <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
       <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Add a comment…"></td>
-      <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
+      <td class="rmcell"><button class="rmbtn rmx" data-rmbudget="${b.id}" title="Remove" aria-label="Remove">✕</button></td>
     </tr>`;
   }).join('');
   document.getElementById('tab-budget').innerHTML = `
@@ -3201,7 +3201,7 @@ function renderBudget(){
         <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountLkr" data-ctid="${c.id}" value="${formatNumInput(c.amountLkr)}"></div></td>
         <td><input type="date" class="cell-input" data-ctfield="dateReceived" data-ctid="${c.id}" value="${c.dateReceived||''}"></td>
         <td><input type="text" class="cell-input cell-input-wide" data-ctfield="notes" data-ctid="${c.id}" value="${escAttr(c.notes||'')}" placeholder="Add a note…"></td>
-        <td><button class="rmbtn" data-rmcontrib="${c.id}">Remove</button></td>
+        <td class="rmcell"><button class="rmbtn rmx" data-rmcontrib="${c.id}" title="Remove" aria-label="Remove">✕</button></td>
       </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:24px;">No contributions logged yet.</td></tr>'}
     </table></div>`;
   document.getElementById('overallBudgetInput').addEventListener('change', e=>{ saveWeddingField({overall_budget: fromDisplayAmount(parseNumInput(e.target.value))}); renderBudget(); });
@@ -3362,7 +3362,7 @@ function renderVendors(){
         <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
         <td>${dueDateBadge(b.dueDate, b.paid)}</td>
         <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Comment…"></td>
-        <td><button class="rmbtn" data-rmbudget="${b.id}">Remove</button></td>
+        <td class="rmcell"><button class="rmbtn rmx" data-rmbudget="${b.id}" title="Remove" aria-label="Remove">✕</button></td>
       </tr>`;
     }).join('');
     return `<div class="info-card" data-vendorid="${v.id}">
@@ -3393,7 +3393,7 @@ function renderVendors(){
           ${totalCost>0 && Math.abs(unaccounted)>1 ? `<div style="font-size:10.5px;color:var(--flag);margin-top:2px;">${unaccounted>0?fmtCurrencyAmount(unaccounted)+' not yet scheduled':fmtCurrencyAmount(-unaccounted)+' over total cost'}</div>` : ''}
           ${nextDue ? `<div style="margin-top:4px;">${dueDateBadge(nextDue, false)}</div>` : ''}
         </div>
-        <button class="rmbtn" data-rmvendor="${v.id}">Delete vendor</button>
+        <button class="rmbtn rmx" data-rmvendor="${v.id}" title="Delete vendor" aria-label="Delete vendor">✕</button>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
         <input type="text" class="cell-input" data-vendorfield="contactName" data-vendorid="${v.id}" value="${escAttr(v.contactName)}" placeholder="Contact name" style="flex:1;min-width:140px;">
@@ -3503,7 +3503,7 @@ function renderChecklist(){
       html += `<div class="cl-item ${t.done?'done':''}">
         <input type="checkbox" data-taskdone="${t.id}" ${t.done?'checked':''}>
         <span>${t.task}</span>
-        <button class="rmbtn" data-rmtask="${t.id}">Remove</button>
+        <button class="rmbtn rmx" data-rmtask="${t.id}" title="Remove" aria-label="Remove">✕</button>
       </div>`;
     });
     html += `</div>`;
@@ -3618,7 +3618,7 @@ function renderDayEventsList(){
         <div style="font-weight:600;${e.done?'text-decoration:line-through;color:var(--ink-soft);':''}">${e.title} <span class="badge ${e.category==='deadline'?'pending':(e.category==='milestone'?'sourced':'estimated')}" style="margin-left:6px;">${e.category}</span></div>
         ${e.notes?`<div class="de-notes">${e.notes}</div>`:''}
       </div>
-      <button class="rmbtn" data-rmevt="${e.id}">Remove</button>
+      <button class="rmbtn rmx" data-rmevt="${e.id}" title="Remove" aria-label="Remove">✕</button>
     </div>`).join('') : '<p style="font-size:13px;color:var(--ink-soft);">No events yet for this day.</p>';
   list.querySelectorAll('[data-evtdone]').forEach(cb=>cb.addEventListener('change', async ()=>{
     await sb.from('calendar_events').update({done:cb.checked}).eq('id', cb.dataset.evtdone);
@@ -3662,7 +3662,7 @@ function renderMoodboard(){
             ${m.caption ? `<div class="mc-caption">${m.caption}</div>` : ''}
             <div class="mc-meta">
               <span class="mc-cat">${m.category}</span>
-              <button class="rmbtn" data-rmmood="${m.id}">Remove</button>
+              <button class="rmbtn rmx" data-rmmood="${m.id}" title="Remove" aria-label="Remove">✕</button>
             </div>
             ${m.sourceUrl ? `<div style="margin-top:6px;"><a class="mc-source" href="${m.sourceUrl}" target="_blank" rel="noopener">View source ↗</a></div>` : ''}
           </div>
