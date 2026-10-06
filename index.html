@@ -153,7 +153,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .vd-detail .vd-title:hover,.vd-detail .vd-title:focus{background:var(--paper);outline:none;border-radius:6px;}
 .vd-summary{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:8px 0 14px;font-size:12.5px;color:var(--ink-soft);}
 .vd-label{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
-.vtable.vendor-table{min-width:760px;}
+.tablewrap.vendor-tablewrap{overflow-x:hidden;}
+@media (max-width:760px){ .tablewrap.vendor-tablewrap{overflow-x:auto;} }   /* phones: fall back to scrolling rather than clipping */
+.vtable.vendor-table{min-width:0;width:100%;}
+.vtable.vendor-table th{white-space:normal;padding:9px 8px;vertical-align:bottom;}
+.vtable.vendor-table td{padding:9px 8px;}
+.vtable.vendor-table td.numcell{white-space:nowrap;}
+.vtable.vendor-table td .badge{white-space:nowrap;}
 .vtable td .over{color:var(--flag);}
 
 .grid{display:grid;grid-template-columns:1fr;gap:12px;}
@@ -356,10 +362,6 @@ select.attend-maybe{background-color:var(--paper);}
 .tag.p2{background:var(--sl-soft);color:#6B4E15;}
 .tag.both{background:var(--info-soft);color:var(--info);}
 .rmbtn{background:none;border:none;color:var(--flag);font-size:12px;font-weight:700;width:auto;}
-.reorder-btns{display:flex;flex-direction:column;gap:1px;}
-.reorder-btn{width:18px;height:14px;padding:0;border:1px solid var(--line);background:var(--paper-raised);color:var(--ink-soft);font-size:8px;line-height:1;cursor:pointer;border-radius:3px;}
-.reorder-btn:hover:not(:disabled){color:var(--ink);border-color:var(--ink-soft);}
-.reorder-btn:disabled{opacity:.35;cursor:default;}
 
 /* Excel-style column filter: header button + popover */
 .cf-btn{background:none;border:1px solid transparent;border-radius:4px;padding:0 4px;margin-left:5px;font-size:10px;line-height:16px;color:var(--ink-soft);cursor:pointer;vertical-align:middle;}
@@ -3338,18 +3340,6 @@ function vendorNextDue(vendorId){
   const outstanding = vendorPayments(vendorId).filter(b=>b.dueDate && !b.paid);
   return outstanding.length ? outstanding[0].dueDate : null;
 }
-async function moveVendor(id, dir){
-  const shown = visibleVendors();
-  const idx = shown.findIndex(v=>v.id===id);
-  const swapIdx = idx + dir;
-  if(idx<0 || swapIdx<0 || swapIdx>=shown.length) return;
-  const a = shown[idx], b = shown[swapIdx];
-  await Promise.all([
-    sb.from('vendors').update({sort_order:b.sortOrder}).eq('id', a.id),
-    sb.from('vendors').update({sort_order:a.sortOrder}).eq('id', b.id)
-  ]);
-  await loadVendors(); renderVendors();
-}
 const VENDOR_FIELD_DB_MAP = {name:'name', category:'category', country:'country', contactName:'contact_name', contactInfo:'contact_info', notes:'notes', totalCostGbp:'total_cost_gbp', totalCostLkr:'total_cost_lkr'};
 async function updateVendorField(id, field, value){
   const dbField = VENDOR_FIELD_DB_MAP[field];
@@ -3510,14 +3500,7 @@ function renderVendorDrawer(){
 }
 function renderVendors(){
   const rows = visibleVendorRows();
-  const sortActive = !!(CF.sorts.vendors && CF.sorts.vendors.key);
-  const body = rows.map((r,idx)=>`<tr class="datarow ${state.activeVendorId===r.id?'selectedrow':''}" data-vendorrow="${r.id}">
-      <td onclick="event.stopPropagation()" style="width:44px;">
-        <div class="reorder-btns">
-          <button type="button" class="reorder-btn" data-movevendor="${r.id}" data-dir="-1" ${(sortActive||idx===0)?'disabled':''} title="${sortActive?'Clear the column sort to reorder':'Move up'}">▲</button>
-          <button type="button" class="reorder-btn" data-movevendor="${r.id}" data-dir="1" ${(sortActive||idx===rows.length-1)?'disabled':''} title="${sortActive?'Clear the column sort to reorder':'Move down'}">▼</button>
-        </div>
-      </td>
+  const body = rows.map(r=>`<tr class="datarow ${state.activeVendorId===r.id?'selectedrow':''}" data-vendorrow="${r.id}">
       <td class="namecell"><span class="name-text">${escAttr(r.name)}</span></td>
       <td>${escAttr(r.category)}</td>
       <td>${escAttr(r.contact)}</td>
@@ -3534,15 +3517,12 @@ function renderVendors(){
       <div class="searchbox"><input id="vendorSearch" placeholder="Search vendor name…" value="${escAttr(state.vendorSearch)}"></div>
       <button class="btn" id="addVendorBtn" style="width:auto;">+ Add vendor</button>
     </div>
-    <p class="result-count">Showing ${rows.length} of ${vendors.length} vendors — click a vendor for details, use ▲▼ to reorder${CF.clearLink('vendors')}</p>
-    <div class="tablewrap"><table class="vtable vendor-table">
-      <tr><th></th>${CF.th('vendors','name','Vendor')}${CF.th('vendors','category','Category')}${CF.th('vendors','contact','Contact')}${CF.th('vendors','total','Total cost')}${CF.th('vendors','paid','Paid so far')}${CF.th('vendors','unscheduled','Not yet scheduled')}${CF.th('vendors','nextDue','Next payment')}${CF.th('vendors','payments','Payments')}<th></th></tr>
-      ${body || `<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--ink-soft);">${vendors.length ? 'No vendors match these filters.' : 'No vendors added yet.'}</td></tr>`}
+    <p class="result-count">Showing ${rows.length} of ${vendors.length} vendors — click a vendor for details${CF.clearLink('vendors')}</p>
+    <div class="tablewrap vendor-tablewrap"><table class="vtable vendor-table">
+      <tr>${CF.th('vendors','name','Vendor')}${CF.th('vendors','category','Category')}${CF.th('vendors','contact','Contact')}${CF.th('vendors','total','Total cost')}${CF.th('vendors','paid','Paid so far')}${CF.th('vendors','unscheduled','Not yet scheduled')}${CF.th('vendors','nextDue','Next payment')}${CF.th('vendors','payments','Payments')}<th></th></tr>
+      ${body || `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--ink-soft);">${vendors.length ? 'No vendors match these filters.' : 'No vendors added yet.'}</td></tr>`}
     </table></div>`;
   const tabEl = document.getElementById('tab-vendors');
-  tabEl.querySelectorAll('[data-movevendor]').forEach(btn=>btn.addEventListener('click', ()=>{
-    moveVendor(btn.dataset.movevendor, +btn.dataset.dir);
-  }));
   tabEl.querySelectorAll('[data-vendorrow]').forEach(tr=>tr.addEventListener('click', ()=>{
     state.activeVendorId = tr.dataset.vendorrow;
     tabEl.querySelectorAll('[data-vendorrow]').forEach(x=>x.classList.toggle('selectedrow', x===tr));
