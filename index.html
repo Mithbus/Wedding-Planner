@@ -343,6 +343,7 @@ select.attend-maybe{background-color:var(--paper);}
 /* Excel-style column filter: header button + popover */
 .cf-btn{background:none;border:1px solid transparent;border-radius:4px;padding:0 4px;margin-left:5px;font-size:10px;line-height:16px;color:var(--ink-soft);cursor:pointer;vertical-align:middle;}
 .cf-btn:hover{border-color:var(--line);background:var(--paper-raised);color:var(--ink);}
+.cf-btn.sorted{color:var(--ink);border-color:var(--ink-soft);}
 .cf-btn.on{background:var(--ink);border-color:var(--ink);color:var(--paper-raised);}
 .cf-pop{position:fixed;z-index:200;width:268px;background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(33,31,26,.22);padding:6px;font-family:'Inter',sans-serif;font-size:13px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink);display:flex;flex-direction:column;max-height:calc(100vh - 16px);}
 .cf-item{display:block;width:100%;text-align:left;background:none;border:none;padding:8px 10px;border-radius:6px;font-size:13px;color:var(--ink);}
@@ -516,7 +517,6 @@ select.attend-maybe{background-color:var(--paper);}
     <div class="ctl"><label>SL guests <span class="val" id="slGuestsVal">100</span></label><input type="range" id="slGuests" min="40" max="180" value="100" step="5"></div>
     <div class="ctl"><label>Reality uplift <span class="val" id="upliftVal">+15%</span></label><input type="range" id="uplift" min="0" max="40" value="15" step="5"></div>
     <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="showFlagged" checked> Show flagged venues</label></div>
-    <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="starredOnly"> ★ Shortlisted only</label></div>
     <div class="ctl"><label style="visibility:hidden">.</label><label class="chk"><input type="checkbox" id="showArchived"> Show archived venues</label></div>
     <div class="ctl" style="margin-left:auto;"><label style="visibility:hidden">.</label><button class="btn" id="addBtn" style="width:auto;">+ Add venue</button></div>
   </div>
@@ -553,9 +553,6 @@ select.attend-maybe{background-color:var(--paper);}
       </div>
       <div class="filter-panel" id="filterPanel" style="display:none;">
         <div class="filter-grid">
-          <div class="filter-field"><label>Country</label><select id="colf_country"></select></div>
-          <div class="filter-field"><label>Status</label><select id="colf_status"></select></div>
-          <div class="filter-field"><label>Location contains</label><input id="colf_location"></div>
           <div class="filter-field"><label>Min venue hire (£)</label><input type="number" id="colf_hireMin"></div>
           <div class="filter-field"><label>Min catering (£)</label><input type="number" id="colf_catMin"></div>
           <div class="filter-field"><label>Min extras (£)</label><input type="number" id="colf_extMin"></div>
@@ -1009,11 +1006,11 @@ let venues=[], guests=[], budgetItems=[], checklist=[], calendarEvents=[], moodb
 let selectedGuestIds = new Set();
 let venuePackagesCache = {};
 let state = {
-  main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true, starredOnly:false, showArchived:false, displayCurrency:'lkr',
+  main:'dashboard', vtab:'all', viewmode:'rows', ukGuests:150, slGuests:100, season:'peak', uplift:15, showFlagged:true, showArchived:false, displayCurrency:'lkr',
   sortKey:'cost', sortDir:'asc', view:'list', activeId:null, editingId:null, addMode:'quick', filtersOpen:false, openMenuId:null,
-  venueSearch:'', venueColFilters:{country:'',location:'',status:'',hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
-  guestSearch:'', guestFilters:{side:'',attend:''}, guestSortKey:'', guestSortDir:'asc',
-  budgetSearch:'', budgetFilters:{country:''}, vendorSearch:'',
+  venueSearch:'', venueColFilters:{hireMin:'',catMin:'',extMin:'',totalMin:'',perHeadMin:'',oursMin:'',p1Min:'',p2Min:''},
+  guestSearch:'', guestSortKey:'', guestSortDir:'asc',
+  budgetSearch:'', vendorSearch:'',
   checklistSearch:'', checklistFilters:{group:'',done:''},
   calMonth: new Date().getMonth(), calYear: new Date().getFullYear(), calSelectedDate:null,
   moodCategory:'all'
@@ -1074,10 +1071,8 @@ const CF = {
   th(id, key, label, o){
     o = o || {};
     const s=this.sortState(id);
-    const sorted = s.key===key;
-    const arrow = sorted ? `<span class="sort-arrow">${s.dir==='asc'?'▲':'▼'}</span>` : '';
-    const on = this.filters[id][key] ? 'on' : '';
-    return `<th class="${o.cls||''} ${sorted?'active-sort':''}" ${o.attrs||''} ${o.style?`style="${o.style}"`:''}>${label}${arrow}<button type="button" class="cf-btn ${on}" data-cftable="${id}" data-cfkey="${key}" data-cflabel="${escAttr(label)}" title="Filter / sort this column">▾</button></th>`;
+    const on = (this.filters[id][key] ? 'on ' : '') + (s.key===key ? 'sorted' : '');
+    return `<th ${o.style?`style="${o.style}"`:''}>${label}<button type="button" class="cf-btn ${on}" data-cftable="${id}" data-cfkey="${key}" data-cflabel="${escAttr(label)}" title="Filter / sort this column">▾</button></th>`;
   },
   close(){ if(this.pop){ this.pop.el.remove(); this.pop=null; } },
   open(btn){
@@ -1806,7 +1801,12 @@ function goTo(main, opts){
   ALL_TABS.forEach(m=>{ document.getElementById('tab-'+m).style.display = (m===main)?'block':'none'; });
   document.getElementById('venueToolbar').style.display = (main==='venues')?'block':'none';
   document.getElementById('mainWrap').classList.toggle('wrap-wide', main==='venues');
-  if(opts.guestAttend!==undefined){ state.guestFilters.attend = opts.guestAttend; }
+  if(opts.guestAttend!==undefined){
+    // Dashboard attendance cards jump here pre-filtered, using the header filter on "Likely to attend"
+    const label = {yes:'Yes', no:'No', maybe:'Maybe'}[opts.guestAttend];
+    if(label) CF.filters.guests.attend = new Set(['Yes','No','Maybe'].filter(l=>l!==label));
+    else delete CF.filters.guests.attend;
+  }
   if(opts.venueId){ state.activeId=opts.venueId; }
   if(opts.calDate){ const d=new Date(opts.calDate); state.calMonth=d.getMonth(); state.calYear=d.getFullYear(); }
   renderActive();
@@ -1918,31 +1918,19 @@ function renderKey(){
 
 /* ================= VENUES: filter panel ================= */
 function fillFilterSelects(){
-  const cSel = document.getElementById('colf_country');
-  cSel.innerHTML = `<option value="">All</option><option value="uk">UK</option><option value="sl">Sri Lanka</option>`;
-  cSel.value = state.venueColFilters.country;
-  const sSel = document.getElementById('colf_status');
-  sSel.innerHTML = statusOptionsHTML(state.venueColFilters.status);
   document.getElementById('colf_p1_wrap').querySelector('label').textContent = 'Min '+partnerName(1)+' rank';
   document.getElementById('colf_p2_wrap').querySelector('label').textContent = 'Min '+partnerName(2)+' rank';
-}
-function statusOptionsHTML(current){
-  const opts = [['','All'],['sourced','Sourced'],['estimated','Estimated'],['pending','Pending quote'],['needsresearch','Needs research'],['custom','Your entry']];
-  return opts.map(([val,label])=>`<option value="${val}" ${current===val?'selected':''}>${label}</option>`).join('');
 }
 function activeFilterCount(){
   let n = 0;
   Object.values(state.venueColFilters).forEach(v=>{ if(v!=='') n++; });
   if(state.venueSearch) n++;
-  return n;
+  return n + CF.activeCount('venues');
 }
 function renderChips(){
   const f = state.venueColFilters;
   const chips = [];
   if(state.venueSearch) chips.push(['search', 'Search: "'+state.venueSearch+'"']);
-  if(f.country) chips.push(['country', 'Country: '+(f.country==='uk'?'UK':'Sri Lanka')]);
-  if(f.location) chips.push(['location', 'Location: '+f.location]);
-  if(f.status) chips.push(['status', 'Status: '+statusLabel({src:f.status,custom:f.status==='custom',hireLow:f.status==='needsresearch'?0:1,hireHigh:1,catLow:1,catHigh:1,extLow:0,extHigh:0})]);
   if(f.hireMin!=='') chips.push(['hireMin', 'Hire ≥ £'+f.hireMin]);
   if(f.catMin!=='') chips.push(['catMin', 'Catering ≥ £'+f.catMin]);
   if(f.extMin!=='') chips.push(['extMin', 'Extras ≥ £'+f.extMin]);
@@ -1966,7 +1954,6 @@ function baseVenueList(){
   let list = venues.filter(v => state.vtab==='all' ? true : v.country===state.vtab);
   if(!state.showFlagged) list = list.filter(v=>!v.flagged);
   if(!state.showArchived) list = list.filter(v=>!v.archived);
-  if(state.starredOnly) list = list.filter(v=>v.starred);
   return list;
 }
 function computeRow(v){
@@ -1987,9 +1974,6 @@ function matchesSearch(row, q){
 }
 function matchesColFilters(row){
   const f = state.venueColFilters;
-  if(f.country && row.country!==f.country) return false;
-  if(f.location && !row.location.toLowerCase().includes(f.location.toLowerCase())) return false;
-  if(f.status && row.status!==f.status) return false;
   if(f.hireMin!=='' && row.hire < +f.hireMin) return false;
   if(f.catMin!=='' && row.cat < +f.catMin) return false;
   if(f.extMin!=='' && row.ext < +f.extMin) return false;
@@ -2081,7 +2065,7 @@ function cardHTML(r){
   </div>`;
 }
 function sortTh(label, key, extraStyle){
-  return CF.th('venues', key, label, {cls:'sortable', attrs:`data-sortkey="${key}"`, style:extraStyle});
+  return CF.th('venues', key, label, {style:extraStyle});
 }
 function rowHTML(rows){
   const showUkCols = state.vtab==='uk';
@@ -2158,7 +2142,6 @@ function renderVenueList(){
     document.getElementById('tableScrollTop').style.display='block';
     document.getElementById('tableViewWrap').innerHTML = rowHTML(rows);
     document.querySelectorAll('.datarow').forEach(tr=>tr.addEventListener('click', ()=>selectVenue(tr.dataset.id)));
-    document.querySelectorAll('#tableViewWrap th.sortable').forEach(th=>th.addEventListener('click', ()=>setSort(th.dataset.sortkey)));
     document.querySelectorAll('.row-cmp').forEach(c=>c.addEventListener('click', e=>{ e.stopPropagation(); toggleCompare(c.dataset.cmp); }));
     syncTopScrollbar();
   }
@@ -2185,6 +2168,7 @@ function renderVenueList(){
     toggleStar(btn.dataset.starvenue);
   }));
   const sortSelectEl = document.getElementById('sortSelect');
+  sortSelectEl.style.display = state.viewmode==='tiles' ? '' : 'none';   // table view sorts from the column headers
   if([...sortSelectEl.options].some(o=>o.value===state.sortKey)) sortSelectEl.value = state.sortKey;
   renderDetailPane();
   renderTray();
@@ -2194,7 +2178,7 @@ document.getElementById('toggleFiltersBtn').addEventListener('click', ()=>{
   document.getElementById('filterPanel').style.display = state.filtersOpen ? 'block' : 'none';
 });
 function bindFilterInputs(){
-  const map = {colf_country:'country',colf_location:'location',colf_status:'status',colf_hireMin:'hireMin',colf_catMin:'catMin',colf_extMin:'extMin',colf_totalMin:'totalMin',colf_perHeadMin:'perHeadMin',colf_oursMin:'oursMin',colf_p1Min:'p1Min',colf_p2Min:'p2Min'};
+  const map = {colf_hireMin:'hireMin',colf_catMin:'catMin',colf_extMin:'extMin',colf_totalMin:'totalMin',colf_perHeadMin:'perHeadMin',colf_oursMin:'oursMin',colf_p1Min:'p1Min',colf_p2Min:'p2Min'};
   Object.entries(map).forEach(([elId,key])=>{
     const el = document.getElementById(elId);
     el.addEventListener('input', ()=>{ state.venueColFilters[key] = el.value; renderVenueList(); });
@@ -2202,6 +2186,7 @@ function bindFilterInputs(){
   });
   document.getElementById('clearVenueFilters').addEventListener('click', ()=>{
     Object.keys(state.venueColFilters).forEach(k=>state.venueColFilters[k]='');
+    CF.filters.venues = {};
     renderVenueList();
   });
 }
@@ -2229,7 +2214,6 @@ function setSort(key){
 document.getElementById('sortSelect').addEventListener('change', e=>{ setSort(e.target.value); });
 document.getElementById('showFlagged').addEventListener('change', e=>{ state.showFlagged=e.target.checked; saveWeddingField({show_flagged:state.showFlagged}); renderVenueList(); });
 document.getElementById('showArchived').addEventListener('change', e=>{ state.showArchived=e.target.checked; saveWeddingField({show_archived:state.showArchived}); renderVenueList(); });
-document.getElementById('starredOnly').addEventListener('change', e=>{ state.starredOnly=e.target.checked; renderVenueList(); });
 document.getElementById('ukGuests').addEventListener('input', e=>{ state.ukGuests=+e.target.value; document.getElementById('ukGuestsVal').textContent=state.ukGuests; saveWeddingField({uk_guests:state.ukGuests}); renderActive(); });
 document.getElementById('slGuests').addEventListener('input', e=>{ state.slGuests=+e.target.value; document.getElementById('slGuestsVal').textContent=state.slGuests; saveWeddingField({sl_guests:state.slGuests}); renderActive(); });
 document.getElementById('uplift').addEventListener('input', e=>{ state.uplift=+e.target.value; document.getElementById('upliftVal').textContent='+'+state.uplift+'%'; saveWeddingField({uplift:state.uplift}); renderActive(); });
@@ -2880,18 +2864,11 @@ CF.register('guests', {
   cols:Object.fromEntries(Object.entries({...GUEST_SORT_GETTERS, saveTheDate:g=>g.save_the_date_sent?'Yes':'No', confirmed:g=>g.confirmed?'Yes':'No'}).map(([k,f])=>[k,{get:f}]))
 });
 function guestSortTh(label, key){
-  return CF.th('guests', key, label, {cls:'sortable', attrs:`data-guestsortkey="${key}"`});
-}
-function setGuestSort(key){
-  if(state.guestSortKey===key){ state.guestSortDir = state.guestSortDir==='asc'?'desc':'asc'; }
-  else { state.guestSortKey=key; state.guestSortDir='asc'; }
-  renderGuests();
+  return CF.th('guests', key, label);
 }
 function visibleGuests(){
   let list = guests.filter(g=>{
     if(state.guestSearch){ const q=state.guestSearch.toLowerCase(); if(!g.name.toLowerCase().includes(q) && !(g.contact||'').toLowerCase().includes(q)) return false; }
-    if(state.guestFilters.side && g.side!==state.guestFilters.side) return false;
-    if(state.guestFilters.attend && g.attend!==state.guestFilters.attend) return false;
     if(!CF.matches('guests', g)) return false;
     return true;
   });
@@ -2940,8 +2917,6 @@ function renderGuests(){
       <h2 style="font-size:22px;">Guest list</h2>
       <div class="searchbox"><input id="guestSearch" placeholder="Search name or contact…" value="${state.guestSearch}"></div>
       <div style="display:flex;gap:8px;">
-        <select class="btn ghost small" id="gf_side" style="border-color:var(--line);width:auto;"><option value="">All sides</option>${sideOptionsHTML(state.guestFilters.side)}</select>
-        <select class="btn ghost small" id="gf_attend" style="border-color:var(--line);width:auto;"><option value="">All attendance</option>${attendOptionsHTML(state.guestFilters.attend)}</select>
         <button class="btn" id="addGuestBtn" style="width:auto;">+ Add guest</button>
         <button class="btn ghost" id="importGuestsBtn" style="width:auto;border-color:var(--line);">⬆ Import Excel</button>
         <input type="file" id="importGuestsFile" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -3038,9 +3013,6 @@ function renderGuests(){
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
   });
-  document.getElementById('gf_side').addEventListener('change', e=>{ state.guestFilters.side=e.target.value; renderGuests(); });
-  document.getElementById('gf_attend').addEventListener('change', e=>{ state.guestFilters.attend=e.target.value; renderGuests(); });
-  document.querySelectorAll('[data-guestsortkey]').forEach(th=>th.addEventListener('click', ()=>setGuestSort(th.dataset.guestsortkey)));
   document.querySelectorAll('[data-rmguest]').forEach(b=>b.addEventListener('click', async ()=>{
     selectedGuestIds.delete(b.dataset.rmguest);
     await sb.from('guests').delete().eq('id', b.dataset.rmguest); await loadGuests(); renderGuests();
@@ -3125,7 +3097,6 @@ CF.register('contrib', {
 function visibleBudget(){
   const list = budgetItems.filter(b=>{
     if(state.budgetSearch && !b.cat.toLowerCase().includes(state.budgetSearch.toLowerCase())) return false;
-    if(state.budgetFilters.country && b.country!==state.budgetFilters.country) return false;
     return CF.matches('budget', b);
   });
   return CF.sortRows('budget', list);
