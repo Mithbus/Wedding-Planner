@@ -124,6 +124,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .dcard .dlabel{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;}
 .dcard .dval{font-family:'Fraunces',serif;font-size:26px;}
 .dcard .dsub{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+.dcard.drill-active{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);}
+.drill{cursor:pointer;border-radius:5px;padding:0 4px;margin:0 -4px;transition:background .12s;}
+.drill:hover{background:var(--paper);text-decoration:underline;text-decoration-style:dotted;}
+.drill.drill-active{background:var(--ink);color:var(--paper-raised);}
 .progress-track{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:10px;}
 .progress-fill{height:100%;background:var(--ink);}
 .upcoming-list{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:6px 20px;margin-top:18px;}
@@ -1057,6 +1061,29 @@ const CF = {
   },
   activeCount(id){ return Object.keys(this.filters[id]).length; },
   clearAll(id){ this.filters[id]={}; this.tables[id].rerender(); },
+  /* Card drill-down: show only rows where each column equals the wanted display value ('*' = any non-blank) */
+  setOnly(id, spec){
+    this.filters[id]={};
+    const rows=this.tables[id].rows();
+    Object.keys(spec).forEach(key=>{
+      const want=spec[key];
+      const vals=new Set(rows.map(r=>this.val(id,key,r)));
+      const ex=new Set([...vals].filter(v=> want==='*' ? v==='' : v!==want));
+      if(ex.size) this.filters[id][key]=ex;
+    });
+    this.tables[id].rerender();
+  },
+  isOnly(id, spec){
+    const f=this.filters[id], keys=Object.keys(spec);
+    if(!keys.length || Object.keys(f).length!==keys.length) return false;
+    const rows=this.tables[id].rows();
+    return keys.every(key=>{
+      if(!f[key]) return false;
+      const allowed=[...new Set(rows.map(r=>this.val(id,key,r)))].filter(v=>!f[key].has(v));
+      const want=spec[key];
+      return want==='*' ? allowed.every(v=>v!=='') : allowed.every(v=>v===want);
+    });
+  },
   clearVolatile(){
     Object.keys(this.tables).forEach(id=>{
       Object.keys(this.tables[id].cols).forEach(k=>{ if(this.tables[id].cols[k].volatile) delete this.filters[id][k]; });
@@ -1912,7 +1939,7 @@ function renderDashboard(){
       }).join('') : '<div class="empty" style="padding:24px;">No upcoming tasks yet — add some in the Calendar tab.</div>'}
     </div>
   `;
-  document.querySelectorAll('.dcard.clickable').forEach(c=>c.addEventListener('click', ()=>{
+  document.querySelectorAll('#tab-dashboard .dcard.clickable').forEach(c=>c.addEventListener('click', ()=>{
     goTo(c.dataset.goto, {guestAttend: c.dataset.attend, venueId: c.dataset.venueid});
   }));
   document.querySelectorAll('.upcoming-item[data-caldate]').forEach(c=>c.addEventListener('click', ()=>{
@@ -2931,6 +2958,9 @@ function renderGuests(){
   const ungroupedCount = guests.filter(g=>!(g.family||'').trim()).length;
   const p1Count = guests.filter(g=>g.side==='partner1').length, p2Count = guests.filter(g=>g.side==='partner2').length, bCount = guests.filter(g=>g.side==='both').length;
   const shown = visibleGuests();
+  const drillAttr = spec=>escAttr(JSON.stringify(spec));
+  const cardActive = spec=>CF.isOnly('guests', spec) ? 'clickable drill-active' : 'clickable';
+  const drill = (spec, text)=>`<span class="drill ${CF.isOnly('guests', spec)?'drill-active':''}" data-gdrill="${drillAttr(spec)}" title="Click to filter the table">${text}</span>`;
   const shownIds = shown.map(g=>g.id);
   const allVisibleSelected = shownIds.length>0 && shownIds.every(id=>selectedGuestIds.has(id));
   const rows = shown.map(g=>`<tr>
@@ -2959,13 +2989,13 @@ function renderGuests(){
       </div>
     </div>
     <div class="dcards">
-      <div class="dcard"><div class="dlabel">Total guests</div><div class="dval">${guests.length}</div></div>
-      <div class="dcard"><div class="dlabel">${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${p1Count} / ${p2Count} / ${bCount}</div></div>
-      <div class="dcard"><div class="dlabel">Families</div><div class="dval">${familyNames.length}</div><div class="dsub">${ungroupedCount} guest${ungroupedCount===1?'':'s'} not in a family</div></div>
-      <div class="dcard"><div class="dlabel">Save the dates sent</div><div class="dval">${saveTheDateCount} <span style="font-size:14px;color:var(--ink-soft);">of ${guests.length}</span></div></div>
-      <div class="dcard"><div class="dlabel">Confirmed guests</div><div class="dval">${confirmedCount}</div></div>
-      <div class="dcard"><div class="dlabel">Confirmed: ${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${confP1} / ${confP2} / ${confBoth}</div></div>
-      <div class="dcard"><div class="dlabel">Likely yes / maybe / no</div><div class="dval" style="font-size:18px;">${yesCount} / ${maybeCount} / ${noCount}</div></div>
+      <div class="dcard clickable ${Object.keys(CF.filters.guests).length?'':'drill-active'}" data-gdrill="{}" title="Show everyone"><div class="dlabel">Total guests</div><div class="dval">${guests.length}</div></div>
+      <div class="dcard"><div class="dlabel">${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${drill({side:partnerName(1)},p1Count)} / ${drill({side:partnerName(2)},p2Count)} / ${drill({side:'Both'},bCount)}</div></div>
+      <div class="dcard ${cardActive({family:'*'})}" data-gdrill="${drillAttr({family:'*'})}" style="cursor:pointer;" title="Show guests in a family"><div class="dlabel">Families</div><div class="dval">${familyNames.length}</div><div class="dsub">${drill({family:''},`${ungroupedCount} guest${ungroupedCount===1?'':'s'} not in a family`)}</div></div>
+      <div class="dcard ${cardActive({saveTheDate:'Yes'})}" data-gdrill="${drillAttr({saveTheDate:'Yes'})}" style="cursor:pointer;" title="Show guests who have been sent a save the date"><div class="dlabel">Save the dates sent</div><div class="dval">${saveTheDateCount} <span style="font-size:14px;color:var(--ink-soft);">of ${guests.length}</span></div><div class="dsub">${drill({saveTheDate:'No'},`${guests.length-saveTheDateCount} not sent yet`)}</div></div>
+      <div class="dcard ${cardActive({confirmed:'Yes'})}" data-gdrill="${drillAttr({confirmed:'Yes'})}" style="cursor:pointer;" title="Show confirmed guests"><div class="dlabel">Confirmed guests</div><div class="dval">${confirmedCount}</div></div>
+      <div class="dcard"><div class="dlabel">Confirmed: ${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${drill({confirmed:'Yes',side:partnerName(1)},confP1)} / ${drill({confirmed:'Yes',side:partnerName(2)},confP2)} / ${drill({confirmed:'Yes',side:'Both'},confBoth)}</div></div>
+      <div class="dcard"><div class="dlabel">Likely yes / maybe / no</div><div class="dval" style="font-size:18px;">${drill({attend:'Yes'},yesCount)} / ${drill({attend:'Maybe'},maybeCount)} / ${drill({attend:'No'},noCount)}</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${guests.length} guests${CF.clearLink('guests')}</p>
     ${selectedGuestIds.size ? `<div class="bulk-bar">
@@ -2979,6 +3009,13 @@ function renderGuests(){
       ${rows || '<tr><td colspan="11" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
     </table>
     <datalist id="guestFamilySuggestions">${familyNames.map(f=>`<option value="${escAttr(f)}">`).join('')}</datalist></div>`;
+  document.querySelectorAll('#tab-guests [data-gdrill]').forEach(el=>el.addEventListener('click', e=>{
+    e.stopPropagation();
+    const spec = JSON.parse(el.dataset.gdrill);
+    if(CF.isOnly('guests', spec)) CF.clearAll('guests'); else CF.setOnly('guests', spec);
+    const wrap = document.querySelector('#tab-guests .tablewrap');
+    if(wrap) wrap.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }));
   document.getElementById('addGuestBtn').addEventListener('click', ()=>{ document.getElementById('g_side').innerHTML = sideOptionsHTML('partner1'); guestOverlay.classList.add('show'); });
   document.getElementById('importGuestsBtn').addEventListener('click', ()=>document.getElementById('importGuestsFile').click());
   document.getElementById('importGuestsFile').addEventListener('change', async (e)=>{
