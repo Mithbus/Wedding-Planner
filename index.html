@@ -1079,7 +1079,7 @@ const CF = {
   activeCount(id){ return Object.keys(this.filters[id]).length; },
   clearAll(id){ this.filters[id]={}; this.tables[id].rerender(); },
   /* Card drill-down: show only rows where each column equals the wanted display value ('*' = any non-blank) */
-  setOnly(id, spec){
+  setOnly(id, spec, render){
     this.filters[id]={};
     const rows=this.tables[id].rows();
     Object.keys(spec).forEach(key=>{
@@ -1088,7 +1088,7 @@ const CF = {
       const ex=new Set([...vals].filter(v=> want==='*' ? v==='' : v!==want));
       if(ex.size) this.filters[id][key]=ex;
     });
-    this.tables[id].rerender();
+    if(render!==false) this.tables[id].rerender();
   },
   isOnly(id, spec){
     const f=this.filters[id], keys=Object.keys(spec);
@@ -1105,6 +1105,23 @@ const CF = {
     Object.keys(this.tables).forEach(id=>{
       Object.keys(this.tables[id].cols).forEach(k=>{ if(this.tables[id].cols[k].volatile) delete this.filters[id][k]; });
     });
+  },
+  /* Card drill-down with optional sort: d = {t:table, spec:{col:value}, sort:{key,dir}|null}. Click again to undo. */
+  drillActive(d){
+    if(!this.isOnly(d.t, d.spec)) return false;
+    if(!d.sort) return true;
+    const cur=this.sortState(d.t);
+    return cur.key===d.sort.key && cur.dir===d.sort.dir;
+  },
+  applyDrill(d, toggle){
+    if(toggle!==false && this.drillActive(d)){
+      this.filters[d.t]={};
+      this.setSort(d.t, '', 'asc');
+      return;
+    }
+    this.setOnly(d.t, d.spec, false);
+    if(d.sort) this.setSort(d.t, d.sort.key, d.sort.dir);
+    else this.tables[d.t].rerender();
   },
   clearLink(id){
     const n=this.activeCount(id);
@@ -1334,6 +1351,7 @@ function autosizeTextareas(){
 document.addEventListener('input', e=>{ if(e.target.matches && e.target.matches('textarea.cell-ta')){ e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+2+'px'; } });
 document.addEventListener('keydown', e=>{ if(e.key==='Enter' && e.target.matches && e.target.matches('textarea.cell-ta')){ e.preventDefault(); e.target.blur(); } });
 window.addEventListener('resize', autosizeTextareas);
+function drillJson(t, spec, sort){ return escAttr(JSON.stringify({t, spec, sort:sort||null})); }
 function colgroup(ws){ return '<colgroup>'+ws.map(w=>`<col style="width:${w}%">`).join('')+'</colgroup>'; }
 function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
@@ -1881,17 +1899,14 @@ function goTo(main, opts){
   ALL_TABS.forEach(m=>{ document.getElementById('tab-'+m).style.display = (m===main)?'block':'none'; });
   document.getElementById('venueToolbar').style.display = (main==='venues')?'block':'none';
   document.getElementById('mainWrap').classList.toggle('wrap-wide', main==='venues');
-  if(opts.guestAttend!==undefined){
-    // Dashboard attendance cards jump here pre-filtered, using the header filter on "Likely to attend"
-    const label = {yes:'Yes', no:'No', maybe:'Maybe'}[opts.guestAttend];
-    if(label) CF.filters.guests.attend = new Set(['Yes','No','Maybe'].filter(l=>l!==label));
-    else delete CF.filters.guests.attend;
-  }
   if(opts.venueId){ state.activeId=opts.venueId; }
   if(opts.calDate){ const d=new Date(opts.calDate); state.calMonth=d.getMonth(); state.calYear=d.getFullYear(); }
+  if(opts.vendorId){ state.activeVendorId = opts.vendorId; }
   renderActive();
+  if(opts.drill) CF.applyDrill(opts.drill, false);   // dashboard cards jump here pre-filtered
   window.scrollTo({top:0,behavior:'smooth'});
   if(main==='venues' && opts.venueId) openDrawer();
+  if(main==='vendors' && opts.vendorId) openVendorDrawer();
 }
 function renderActive(){
   if(state.main==='dashboard') renderDashboard();
@@ -1934,6 +1949,7 @@ function renderDashboard(){
   const doneTasks = checklist.filter(t=>t.done).length;
   const clPct = checklist.length ? Math.round(doneTasks/checklist.length*100) : 0;
   const needsResearch = venues.filter(v=>isStub(v)).length;
+  const stubVenue = venues.find(v=>isStub(v));
   const bookedVenue = venues.find(v=>v.booked);
   const overallBudget = toDisplayAmount(wedding.overall_budget || 0);
   const today = todayStr();
@@ -1946,14 +1962,14 @@ function renderDashboard(){
     <div class="section-head"><h2 style="font-size:22px;">Overview</h2></div>
     <div class="dcards">
       <div class="dcard ${bookedVenue?'clickable':''}" ${bookedVenue?`data-goto="venues" data-venueid="${bookedVenue.id}"`:''}><div class="dlabel">Booked venue</div><div class="dval" style="font-size:19px;">${bookedVenue?bookedVenue.name:'Not booked yet'}</div><div class="dsub">${bookedVenue?`${fmt((bookedVenue.bookedHire||0)+(bookedVenue.bookedCat||0)+(bookedVenue.bookedExt||0))} frozen at booking · ${bookedVenue.bookedGuests||'–'} guests — click to view`:'Star favourites in the Venues tab, then book when ready'}</div></div>
-      <div class="dcard clickable" data-goto="guests"><div class="dlabel">Guest list</div><div class="dval">${totalG}</div><div class="dsub">${yesG} likely yes · ${maybeG} maybe · ${noG} no</div></div>
-      <div class="dcard clickable" data-goto="guests"><div class="dlabel">Confirmed attendance</div><div class="dval">${confirmedG}</div><div class="dsub">of ${totalG} guests — click to review</div></div>
-      <div class="dcard clickable" data-goto="budget"><div class="dlabel">Budget spent so far</div><div class="dval">${fmtCurrencyAmount(spentTotal)}</div><div class="dsub">of ${fmtCurrencyAmount(overallBudget)} overall budget</div>
+      <div class="dcard clickable" data-goto="guests" data-drill="${drillJson('guests',{})}"><div class="dlabel">Guest list</div><div class="dval">${totalG}</div><div class="dsub"><span class="drill" data-goto="guests" data-drill="${drillJson('guests',{attend:'Yes'})}">${yesG} likely yes</span> · <span class="drill" data-goto="guests" data-drill="${drillJson('guests',{attend:'Maybe'})}">${maybeG} maybe</span> · <span class="drill" data-goto="guests" data-drill="${drillJson('guests',{attend:'No'})}">${noG} no</span></div></div>
+      <div class="dcard clickable" data-goto="guests" data-drill="${drillJson('guests',{confirmed:'Yes'})}"><div class="dlabel">Confirmed attendance</div><div class="dval">${confirmedG}</div><div class="dsub">of ${totalG} guests — click to review</div></div>
+      <div class="dcard clickable" data-goto="budget" data-drill="${drillJson('budget',{paid:'Yes'})}"><div class="dlabel">Budget spent so far</div><div class="dval">${fmtCurrencyAmount(spentTotal)}</div><div class="dsub">of ${fmtCurrencyAmount(overallBudget)} overall budget</div>
         <div class="progress-track"><div class="progress-fill" style="width:${overallBudget?Math.min(100,spentTotal/overallBudget*100):0}%"></div></div></div>
-      <div class="dcard ${nextPayment?'clickable':''}" ${nextPayment?'data-goto="vendors"':''}><div class="dlabel">Next payment due</div><div class="dval" style="font-size:19px;">${nextPayment?nextPayment.cat:'None scheduled'}</div><div class="dsub">${nextPayment?`Due ${nextPayment.dueDate} — click to view`:'Add due dates in the Vendors tab'}</div></div>
+      <div class="dcard ${nextPayment?'clickable':''}" ${nextPayment?(nextPayment.vendorId?`data-goto="vendors" data-vendorid="${nextPayment.vendorId}"`:`data-goto="budget" data-drill="${drillJson('budget',{paid:'No',dueDate:'*'},{key:'dueDate',dir:'asc'})}"`):''}><div class="dlabel">Next payment due</div><div class="dval" style="font-size:19px;">${nextPayment?nextPayment.cat:'None scheduled'}</div><div class="dsub">${nextPayment?`Due ${nextPayment.dueDate} — click to view`:'Add due dates in the Vendors tab'}</div></div>
       <div class="dcard clickable" data-goto="checklist"><div class="dlabel">Checklist progress</div><div class="dval">${clPct}%</div><div class="dsub">${doneTasks} of ${checklist.length} tasks done</div>
         <div class="progress-track"><div class="progress-fill" style="width:${clPct}%"></div></div></div>
-      <div class="dcard clickable" data-goto="venues"><div class="dlabel">Venues needing research</div><div class="dval" style="color:${needsResearch?'var(--info)':'var(--ink)'}">${needsResearch}</div><div class="dsub">Added by name only, awaiting details</div></div>
+      <div class="dcard clickable" data-goto="venues" ${stubVenue?`data-drill="${drillJson('venues',{status:statusLabel(stubVenue)})}"`:''}><div class="dlabel">Venues needing research</div><div class="dval" style="color:${needsResearch?'var(--info)':'var(--ink)'}">${needsResearch}</div><div class="dsub">Added by name only, awaiting details</div></div>
     </div>
     <div class="section-head" style="margin-top:30px;"><h2 style="font-size:19px;">Upcoming tasks &amp; reminders</h2></div>
     <div class="upcoming-list">
@@ -1963,8 +1979,9 @@ function renderDashboard(){
       }).join('') : '<div class="empty" style="padding:24px;">No upcoming tasks yet — add some in the Calendar tab.</div>'}
     </div>
   `;
-  document.querySelectorAll('#tab-dashboard .dcard.clickable').forEach(c=>c.addEventListener('click', ()=>{
-    goTo(c.dataset.goto, {guestAttend: c.dataset.attend, venueId: c.dataset.venueid});
+  document.querySelectorAll('#tab-dashboard .dcard.clickable, #tab-dashboard .drill[data-goto]').forEach(c=>c.addEventListener('click', e=>{
+    e.stopPropagation();
+    goTo(c.dataset.goto, {drill: c.dataset.drill ? JSON.parse(c.dataset.drill) : undefined, venueId: c.dataset.venueid, vendorId: c.dataset.vendorid});
   }));
   document.querySelectorAll('.upcoming-item[data-caldate]').forEach(c=>c.addEventListener('click', ()=>{
     goTo('calendar', {calDate: c.dataset.caldate});
@@ -3316,12 +3333,12 @@ function renderBudget(){
         <div class="amt-wrap large" data-symbol="${currencySymbol()}"><input type="text" inputmode="decimal" id="overallBudgetInput" value="${formatNumInput(Math.round(overallBudgetDisplay))}" style="font-family:'Fraunces',serif;font-size:22px;border:none;background:none;padding:0;width:100%;color:var(--ink);"></div>
         <div class="dsub">Editable — shared, updates live for both of you</div>
       </div>
-      <div class="dcard"><div class="dlabel">Total spent so far</div><div class="dval">${fmtCurrencyAmount(spentTotal)}</div><div class="dsub">amounts marked Paid</div>
+      <div class="dcard clickable ${CF.drillActive({t:'budget',spec:{paid:'Yes'},sort:null})?'drill-active':''}" data-drill="${drillJson('budget',{paid:'Yes'})}" title="Show the lines marked Paid"><div class="dlabel">Total spent so far</div><div class="dval">${fmtCurrencyAmount(spentTotal)}</div><div class="dsub">amounts marked Paid</div>
         <div class="progress-track"><div class="progress-fill" style="width:${overallBudgetDisplay?Math.min(100,spentTotal/overallBudgetDisplay*100):0}%;background:${spentTotal>overallBudgetDisplay?'var(--flag)':'var(--ink)'}"></div></div></div>
-      <div class="dcard"><div class="dlabel">Total committed</div><div class="dval">${fmtCurrencyAmount(committedTotal)}</div><div class="dsub">paid + scheduled</div></div>
-      <div class="dcard"><div class="dlabel">Remaining vs overall budget</div><div class="dval" style="color:${overallBudgetDisplay-committedTotal<0?'var(--flag)':'var(--ink)'}">${fmtCurrencyAmount(overallBudgetDisplay-committedTotal)}</div></div>
-      <div class="dcard"><div class="dlabel">Funds received (£)</div><div class="dval">${fmtCurrencyAmount(fundsReceivedGbp,'gbp')}</div><div class="dsub">from parents & other contributions — always in GBP</div></div>
-      <div class="dcard"><div class="dlabel">Funding balance (£)</div><div class="dval" style="color:${fundingBalanceGbp<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(fundingBalanceGbp,'gbp')}</div><div class="dsub">received minus spent so far — always in GBP</div></div>
+      <div class="dcard clickable" data-drill="${drillJson('budget',{})}" title="Show every budget line"><div class="dlabel">Total committed</div><div class="dval">${fmtCurrencyAmount(committedTotal)}</div><div class="dsub">paid + scheduled</div></div>
+      <div class="dcard clickable ${CF.drillActive({t:'budget',spec:{paid:'No'},sort:null})?'drill-active':''}" data-drill="${drillJson('budget',{paid:'No'})}" title="Show the lines not yet paid"><div class="dlabel">Remaining vs overall budget</div><div class="dval" style="color:${overallBudgetDisplay-committedTotal<0?'var(--flag)':'var(--ink)'}">${fmtCurrencyAmount(overallBudgetDisplay-committedTotal)}</div></div>
+      <div class="dcard clickable" data-scrollto="fundingSection" title="Jump to the funding sources table"><div class="dlabel">Funds received (£)</div><div class="dval">${fmtCurrencyAmount(fundsReceivedGbp,'gbp')}</div><div class="dsub">from parents & other contributions — always in GBP</div></div>
+      <div class="dcard clickable" data-scrollto="fundingSection" title="Jump to the funding sources table"><div class="dlabel">Funding balance (£)</div><div class="dval" style="color:${fundingBalanceGbp<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(fundingBalanceGbp,'gbp')}</div><div class="dsub">received minus spent so far — always in GBP</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines${CF.clearLink('budget')}</p>
     <div class="tablewrap fit"><table class="plain-table fit">
@@ -3329,7 +3346,7 @@ function renderBudget(){
       <tr>${CF.th('budget','cat','Category')}${CF.th('budget','vendor','Vendor')}${CF.th('budget','actual','Amount GBP')}${CF.th('budget','actualLkr','Amount LKR')}${CF.th('budget','paid','Paid')}${CF.th('budget','dueDate','Due date')}${CF.th('budget','notes','Comments')}<th></th></tr>
       ${rows || '<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
     </table></div>
-    <div class="section-head" style="margin-top:30px;">
+    <div class="section-head" id="fundingSection" style="margin-top:30px;">
       <h2 style="font-size:19px;">Funding sources</h2>
       <button class="btn ghost small" id="addContributionBtn" style="width:auto;">+ Add contribution</button>
     </div>
@@ -3378,6 +3395,13 @@ function renderBudget(){
     updateContributionField(el.dataset.ctid, el.dataset.ctfield, value);
   }));
   autosizeTextareas(); requestAnimationFrame(autosizeTextareas);
+  budgetTabEl.querySelectorAll('[data-drill]').forEach(el=>el.addEventListener('click', ()=>{
+    CF.applyDrill(JSON.parse(el.dataset.drill));
+    const w=document.querySelector('#tab-budget .tablewrap'); if(w) w.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }));
+  budgetTabEl.querySelectorAll('[data-scrollto]').forEach(el=>el.addEventListener('click', ()=>{
+    const t=document.getElementById(el.dataset.scrollto); if(t) t.scrollIntoView({behavior:'smooth', block:'start'});
+  }));
   budgetTabEl.querySelectorAll('[data-rmcontrib]').forEach(b=>b.addEventListener('click', async ()=>{
     await sb.from('contributions').delete().eq('id', b.dataset.rmcontrib); await loadContributions(); renderBudget();
   }));
@@ -3616,6 +3640,9 @@ function renderVendorDrawer(){
 }
 function renderVendors(){
   const rows = visibleVendorRows();
+  const allSummaries = vendors.map(vendorSummary);
+  const allSums = {total:allSummaries.reduce((a,r)=>a+r.total,0), paid:allSummaries.reduce((a,r)=>a+r.paid,0), remaining:allSummaries.reduce((a,r)=>a+(r.total>0?Math.max(0,r.remaining):0),0)};
+  const nextVendor = allSummaries.filter(r=>r.nextDue).sort((a,b)=>a.nextDue.localeCompare(b.nextDue))[0];
   const body = rows.map(r=>`<tr class="datarow ${state.activeVendorId===r.id?'selectedrow':''}" data-vendorrow="${r.id}">
       <td class="namecell"><span class="name-text">${escAttr(r.name)}</span></td>
       <td>${escAttr(r.category)}</td>
@@ -3633,12 +3660,23 @@ function renderVendors(){
       <div class="searchbox"><input id="vendorSearch" placeholder="Search vendor name…" value="${escAttr(state.vendorSearch)}"></div>
       <button class="btn" id="addVendorBtn" style="width:auto;">+ Add vendor</button>
     </div>
+    <div class="dcards">
+      <div class="dcard clickable" data-drill="${drillJson('vendors',{})}" title="Show every vendor"><div class="dlabel">Vendors</div><div class="dval">${vendors.length}</div></div>
+      <div class="dcard clickable ${CF.drillActive({t:'vendors',spec:{},sort:{key:'total',dir:'desc'}})?'drill-active':''}" data-drill="${drillJson('vendors',{},{key:'total',dir:'desc'})}" title="Show all vendors, biggest total first"><div class="dlabel">Total cost</div><div class="dval">${fmtCurrencyAmount(allSums.total)}</div></div>
+      <div class="dcard clickable ${CF.drillActive({t:'vendors',spec:{paid:'*'},sort:{key:'paid',dir:'desc'}})?'drill-active':''}" data-drill="${drillJson('vendors',{paid:'*'},{key:'paid',dir:'desc'})}" title="Show vendors you have paid something to"><div class="dlabel">Paid so far</div><div class="dval">${fmtCurrencyAmount(allSums.paid)}</div></div>
+      <div class="dcard clickable ${CF.drillActive({t:'vendors',spec:{remaining:'*'},sort:{key:'remaining',dir:'desc'}})?'drill-active':''}" data-drill="${drillJson('vendors',{remaining:'*'},{key:'remaining',dir:'desc'})}" title="Show vendors with a total cost, most still to pay first"><div class="dlabel">Total remaining</div><div class="dval">${fmtCurrencyAmount(allSums.remaining)}</div></div>
+      <div class="dcard ${nextVendor?'clickable':''}" ${nextVendor?`data-opendrawer="${nextVendor.id}"`:''}><div class="dlabel">Next payment due</div><div class="dval" style="font-size:19px;">${nextVendor?escAttr(nextVendor.name):'None scheduled'}</div><div class="dsub">${nextVendor?`Due ${formatDateDMY(nextVendor.nextDue)} — click to view`:'Add due dates to the payments'}</div></div>
+    </div>
     <p class="result-count">Showing ${rows.length} of ${vendors.length} vendors — click a vendor for details${CF.clearLink('vendors')}</p>
     <div class="tablewrap vendor-tablewrap"><table class="vtable vendor-table">
       <tr>${CF.th('vendors','name','Vendor')}${CF.th('vendors','category','Category')}${CF.th('vendors','contact','Contact')}${CF.th('vendors','total','Total cost')}${CF.th('vendors','paid','Paid so far')}${CF.th('vendors','remaining','Total remaining')}${CF.th('vendors','nextDue','Next payment')}${CF.th('vendors','payments','Payments')}<th></th></tr>
       ${body || `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--ink-soft);">${vendors.length ? 'No vendors match these filters.' : 'No vendors added yet.'}</td></tr>`}
     </table></div>`;
   const tabEl = document.getElementById('tab-vendors');
+  tabEl.querySelectorAll('[data-drill]').forEach(el=>el.addEventListener('click', ()=>CF.applyDrill(JSON.parse(el.dataset.drill))));
+  tabEl.querySelectorAll('[data-opendrawer]').forEach(el=>el.addEventListener('click', ()=>{
+    state.activeVendorId = el.dataset.opendrawer; renderVendors(); openVendorDrawer();
+  }));
   tabEl.querySelectorAll('[data-vendorrow]').forEach(tr=>tr.addEventListener('click', ()=>{
     state.activeVendorId = tr.dataset.vendorrow;
     tabEl.querySelectorAll('[data-vendorrow]').forEach(x=>x.classList.toggle('selectedrow', x===tr));
