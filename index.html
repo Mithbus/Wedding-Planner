@@ -720,6 +720,7 @@ select.attend-maybe{background-color:var(--paper);}
   <div class="modal">
     <h2>Add a guest</h2>
     <div class="form-row"><label>Name</label><input id="g_name" placeholder="Full name"></div>
+    <div class="form-row"><label>Family (optional)</label><input id="g_family" list="guestFamilySuggestions" placeholder="e.g. The Perera family — same name groups guests together"></div>
     <div class="form-grid2">
       <div class="form-row"><label>Whose guest?</label><select id="g_side"></select></div>
       <div class="form-row"><label>Tag (optional)</label><input id="g_tag" placeholder="e.g. Dad's guest"></div>
@@ -2878,6 +2879,7 @@ function attendOptionsHTML(current){
 const GUEST_SORT_GETTERS = {
   name: g=>g.name||'',
   side: g=>g.side==='both'?'Both':(g.side==='partner1'?partnerName(1):partnerName(2)),
+  family: g=>g.family||'',
   tag: g=>g.tag||'',
   contact: g=>g.contact||'',
   attend: g=>({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend]||'',
@@ -2924,6 +2926,8 @@ function renderGuests(){
   const noCount = guests.filter(g=>g.attend==='no').length;
   const confirmedCount = guests.filter(g=>g.confirmed).length;
   const saveTheDateCount = guests.filter(g=>g.save_the_date_sent).length;
+  const familyNames = [...new Set(guests.map(g=>(g.family||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const ungroupedCount = guests.filter(g=>!(g.family||'').trim()).length;
   const p1Count = guests.filter(g=>g.side==='partner1').length, p2Count = guests.filter(g=>g.side==='partner2').length, bCount = guests.filter(g=>g.side==='both').length;
   const shown = visibleGuests();
   const shownIds = shown.map(g=>g.id);
@@ -2931,6 +2935,7 @@ function renderGuests(){
   const rows = shown.map(g=>`<tr>
       <td class="checkcell"><input type="checkbox" class="guest-check" data-guestid="${g.id}" ${selectedGuestIds.has(g.id)?'checked':''}></td>
       <td><input type="text" class="cell-input" data-field="name" data-guestid="${g.id}" value="${escAttr(g.name)}"></td>
+      <td><input type="text" class="cell-input" data-field="family" data-guestid="${g.id}" value="${escAttr(g.family||'')}" placeholder="e.g. Perera family" list="guestFamilySuggestions"></td>
       <td><select class="cell-input side-${g.side}" data-field="side" data-guestid="${g.id}">${sideOptionsHTML(g.side)}</select></td>
       <td><input type="text" class="cell-input" data-field="tag" data-guestid="${g.id}" value="${escAttr(g.tag||'')}" placeholder="e.g. Dad's guest"></td>
       <td><input type="text" class="cell-input" data-field="contact" data-guestid="${g.id}" value="${escAttr(g.contact||'')}" placeholder="—"></td>
@@ -2949,11 +2954,13 @@ function renderGuests(){
         <button class="btn ghost" id="importGuestsBtn" style="width:auto;border-color:var(--line);">⬆ Import Excel</button>
         <input type="file" id="importGuestsFile" accept=".xlsx,.xls,.csv" style="display:none;">
         <button class="btn export" id="exportGuestsBtn" style="width:auto;">⬇ Excel</button>
+        <button class="btn export" id="exportGuestsSheetsBtn" style="width:auto;" title="Copies the guest list and opens a new Google Sheet to paste it into">⧉ Google Sheets</button>
       </div>
     </div>
     <div class="dcards">
       <div class="dcard"><div class="dlabel">Total guests</div><div class="dval">${guests.length}</div></div>
       <div class="dcard"><div class="dlabel">${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${p1Count} / ${p2Count} / ${bCount}</div></div>
+      <div class="dcard"><div class="dlabel">Families</div><div class="dval">${familyNames.length}</div><div class="dsub">${ungroupedCount} guest${ungroupedCount===1?'':'s'} not in a family</div></div>
       <div class="dcard"><div class="dlabel">Save the dates sent</div><div class="dval">${saveTheDateCount} <span style="font-size:14px;color:var(--ink-soft);">of ${guests.length}</span></div></div>
       <div class="dcard"><div class="dlabel">Confirmed guests</div><div class="dval">${confirmedCount}</div></div>
       <div class="dcard"><div class="dlabel">Likely yes / maybe / no</div><div class="dval" style="font-size:18px;">${yesCount} / ${maybeCount} / ${noCount}</div></div>
@@ -2966,9 +2973,10 @@ function renderGuests(){
       <button type="button" id="clearSelection">Clear selection</button>
     </div>` : ''}
     <div class="tablewrap"><table class="plain-table">
-      <tr><th class="checkcell"><input type="checkbox" id="guestSelectAll" ${allVisibleSelected?'checked':''}></th>${guestSortTh('Name','name')}${guestSortTh('Whose guest','side')}${guestSortTh('Tag','tag')}${guestSortTh('Contact','contact')}${guestSortTh('Likely to attend','attend')}${guestSortTh('Save the date','saveTheDate')}${guestSortTh('Confirmed','confirmed')}${guestSortTh('Notes','notes')}<th></th></tr>
-      ${rows || '<tr><td colspan="10" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
-    </table></div>`;
+      <tr><th class="checkcell"><input type="checkbox" id="guestSelectAll" ${allVisibleSelected?'checked':''}></th>${guestSortTh('Name','name')}${guestSortTh('Family','family')}${guestSortTh('Whose guest','side')}${guestSortTh('Tag','tag')}${guestSortTh('Contact','contact')}${guestSortTh('Likely to attend','attend')}${guestSortTh('Save the date','saveTheDate')}${guestSortTh('Confirmed','confirmed')}${guestSortTh('Notes','notes')}<th></th></tr>
+      ${rows || '<tr><td colspan="11" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
+    </table>
+    <datalist id="guestFamilySuggestions">${familyNames.map(f=>`<option value="${escAttr(f)}">`).join('')}</datalist></div>`;
   document.getElementById('addGuestBtn').addEventListener('click', ()=>{ document.getElementById('g_side').innerHTML = sideOptionsHTML('partner1'); guestOverlay.classList.add('show'); });
   document.getElementById('importGuestsBtn').addEventListener('click', ()=>document.getElementById('importGuestsFile').click());
   document.getElementById('importGuestsFile').addEventListener('change', async (e)=>{
@@ -2993,6 +3001,7 @@ function renderGuests(){
       if(!nameCol){ alert('Could not find a "Name" column in that file. Please include a column called Name.'); e.target.value=''; return; }
       const sideCol = findCol(sample, ['whose guest','side']);
       const tagCol = findCol(sample, ['tag','tags']);
+      const familyCol = findCol(sample, ['family','family group','household']);
       const attendCol = findCol(sample, ['likely to attend','attend','attending']);
       const confirmedCol = findCol(sample, ['confirmed','rsvp confirmed','is confirmed']);
       const saveTheDateCol = findCol(sample, ['save the date sent','save the date']);
@@ -3011,6 +3020,7 @@ function renderGuests(){
         return {
           wedding_id: weddingId, name,
           side: sideMap[rawSide] || 'both',
+          family: familyCol ? (r[familyCol]||'').toString().trim() : '',
           tag: tagCol ? (r[tagCol]||'').toString().trim() : '',
           attend: attendMap[rawAttend] || 'maybe',
           confirmed: truthy.includes(rawConfirmed),
@@ -3029,10 +3039,26 @@ function renderGuests(){
     }
     e.target.value='';
   });
+  const guestExportAoa = ()=>{
+    const header=['Name','Family','Whose guest','Tag','Contact','Likely to attend','Save the date sent','Confirmed','Notes'];
+    return [header, ...shown.map(g=>[g.name, g.family||'', g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.tag||'', g.contact||'', ({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend], g.save_the_date_sent?'Yes':'No', g.confirmed?'Yes':'No', g.notes||''])];
+  };
   document.getElementById('exportGuestsBtn').addEventListener('click', ()=>{
-    const header=['Name','Whose guest','Tag','Contact','Likely to attend','Save the date sent','Confirmed','Notes'];
-    const aoa=[header, ...shown.map(g=>[g.name, g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.tag||'', g.contact||'', ({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend], g.save_the_date_sent?'Yes':'No', g.confirmed?'Yes':'No', g.notes||''])];
-    exportRowsToExcel('guest-list.xlsx','Guests',aoa);
+    exportRowsToExcel('guest-list.xlsx','Guests',guestExportAoa());
+  });
+  document.getElementById('exportGuestsSheetsBtn').addEventListener('click', async ()=>{
+    // Tab-separated text pastes straight into Google Sheets as separate cells
+    const aoa = guestExportAoa();
+    const tsv = aoa.map(r=>r.map(c=>String(c==null?'':c).replace(/[\t\r\n]+/g,' ')).join('\t')).join('\n');
+    const copied = navigator.clipboard ? navigator.clipboard.writeText(tsv) : Promise.reject(new Error('no clipboard'));
+    window.open('https://sheets.new', '_blank');
+    try{
+      await copied;
+      alert(`Copied ${aoa.length-1} guest${aoa.length===2?'':'s'}.\n\nA new Google Sheet is opening. Click cell A1 and press Ctrl+V (Cmd+V on Mac) to paste the guest list.`);
+    }catch(err){
+      exportRowsToExcel('guest-list.xlsx','Guests',aoa);
+      alert('Could not copy to the clipboard, so the guest list was downloaded as an Excel file instead. In the new Google Sheet use File → Import → Upload to load it.');
+    }
   });
   document.getElementById('guestSearch').addEventListener('input', e=>{
     state.guestSearch=e.target.value;
@@ -3084,13 +3110,14 @@ document.getElementById('saveGuest').addEventListener('click', async ()=>{
   if(!name){ alert('Please enter a name.'); return; }
   await sb.from('guests').insert({
     wedding_id:weddingId, name, side:document.getElementById('g_side').value,
+    family: document.getElementById('g_family').value.trim(),
     tag: document.getElementById('g_tag').value.trim(),
     attend:document.getElementById('g_attend').value,
     confirmed: document.getElementById('g_confirmed').checked,
     save_the_date_sent: document.getElementById('g_savethedate').checked,
     contact:document.getElementById('g_contact').value.trim(), notes:document.getElementById('g_notes').value.trim()
   });
-  ['g_name','g_tag','g_contact','g_notes'].forEach(id=>document.getElementById(id).value='');
+  ['g_name','g_family','g_tag','g_contact','g_notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('g_confirmed').checked = false;
   document.getElementById('g_savethedate').checked = false;
   guestOverlay.classList.remove('show');
