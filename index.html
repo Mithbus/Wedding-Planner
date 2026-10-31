@@ -2925,6 +2925,7 @@ function renderGuests(){
   const maybeCount = guests.filter(g=>g.attend==='maybe').length;
   const noCount = guests.filter(g=>g.attend==='no').length;
   const confirmedCount = guests.filter(g=>g.confirmed).length;
+  const confP1 = guests.filter(g=>g.confirmed && g.side==='partner1').length, confP2 = guests.filter(g=>g.confirmed && g.side==='partner2').length, confBoth = guests.filter(g=>g.confirmed && g.side==='both').length;
   const saveTheDateCount = guests.filter(g=>g.save_the_date_sent).length;
   const familyNames = [...new Set(guests.map(g=>(g.family||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const ungroupedCount = guests.filter(g=>!(g.family||'').trim()).length;
@@ -2963,6 +2964,7 @@ function renderGuests(){
       <div class="dcard"><div class="dlabel">Families</div><div class="dval">${familyNames.length}</div><div class="dsub">${ungroupedCount} guest${ungroupedCount===1?'':'s'} not in a family</div></div>
       <div class="dcard"><div class="dlabel">Save the dates sent</div><div class="dval">${saveTheDateCount} <span style="font-size:14px;color:var(--ink-soft);">of ${guests.length}</span></div></div>
       <div class="dcard"><div class="dlabel">Confirmed guests</div><div class="dval">${confirmedCount}</div></div>
+      <div class="dcard"><div class="dlabel">Confirmed: ${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${confP1} / ${confP2} / ${confBoth}</div></div>
       <div class="dcard"><div class="dlabel">Likely yes / maybe / no</div><div class="dval" style="font-size:18px;">${yesCount} / ${maybeCount} / ${noCount}</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${guests.length} guests${CF.clearLink('guests')}</p>
