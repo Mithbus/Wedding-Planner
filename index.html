@@ -212,8 +212,22 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 .badge.needsresearch{background:var(--info-soft);color:var(--info);}
 
 .tablewrap{overflow-x:auto;margin-top:6px;border:1px solid var(--line);border-radius:12px;}
-.vtable{border-collapse:collapse;width:100%;min-width:900px;background:var(--paper-raised);}
-.vtable th{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--paper);white-space:nowrap;}
+/* "fit" tables: columns share the available width instead of scrolling sideways */
+.tablewrap.fit{overflow-x:hidden;}
+table.fit{table-layout:fixed;width:100%;min-width:0;}
+table.fit th{white-space:normal;vertical-align:bottom;padding:8px 6px;font-size:9.5px;letter-spacing:.03em;line-height:1.25;}
+table.fit td{padding:7px 6px;vertical-align:middle;}
+table.fit td.checkcell,table.fit th.checkcell{width:auto;padding-left:6px;padding-right:6px;}
+table.fit td.rmcell{width:auto;padding-left:2px;padding-right:2px;text-align:center;}
+table.fit .cell-input,table.fit .cell-input.cell-input-wide,table.fit .num-input{min-width:0;font-size:12px;padding:5px 6px;text-overflow:ellipsis;}
+textarea.cell-ta{display:block;resize:none;overflow:hidden;line-height:1.35;font-family:inherit;white-space:pre-wrap;overflow-wrap:anywhere;}
+table.fit select.cell-input{min-width:0;padding-right:20px;background-position:right 6px center;}
+table.fit .amt-wrap{min-width:0;}
+table.fit .amt-wrap input{padding-left:21px !important;}
+table.fit .amt-wrap::before{left:7px;font-size:12px;}
+@media (max-width:860px){ .tablewrap.fit{overflow-x:auto;} table.fit{min-width:820px;} }
+.vtable{border-collapse:collapse;width:100%;min-width:0;background:var(--paper-raised);}
+.vtable th{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--paper);white-space:normal;vertical-align:bottom;}
 .vtable th.sortable,.plain-table th.sortable{cursor:pointer;user-select:none;}
 .vtable th.sortable:hover,.plain-table th.sortable:hover{color:var(--ink);}
 .vtable th.active-sort,.plain-table th.active-sort{color:var(--ink);}
@@ -731,8 +745,11 @@ select.attend-maybe{background-color:var(--paper);}
     </div>
     <div class="form-grid2">
       <div class="form-row"><label>Likely to attend</label><select id="g_attend"><option value="yes">Yes</option><option value="no">No</option><option value="maybe" selected>Maybe</option></select></div>
-      <div class="form-row"><label class="chk" style="margin-top:26px;"><input type="checkbox" id="g_savethedate"> Save the date sent</label></div>
-      <div class="form-row"><label class="chk" style="margin-top:26px;"><input type="checkbox" id="g_confirmed"> Confirmed</label></div>
+    </div>
+    <div class="form-row" style="display:flex;gap:20px;flex-wrap:wrap;">
+      <label class="chk"><input type="checkbox" id="g_savethedate"> Save the date sent</label>
+      <label class="chk"><input type="checkbox" id="g_confirmed"> Confirmed attending</label>
+      <label class="chk"><input type="checkbox" id="g_declined"> Declined</label>
     </div>
     <div class="form-row"><label>Contact (email or phone)</label><input id="g_contact" placeholder="optional"></div>
     <div class="form-row"><label>Notes</label><input id="g_notes" placeholder="optional"></div>
@@ -1311,6 +1328,13 @@ document.querySelectorAll('#currencyToggle [data-currency]').forEach(btn=>btn.ad
   saveWeddingField({display_currency:c});
   renderActive();
 }));
+function autosizeTextareas(){
+  document.querySelectorAll('textarea.cell-ta').forEach(t=>{ t.style.height='auto'; if(t.scrollHeight) t.style.height=t.scrollHeight+2+'px'; });
+}
+document.addEventListener('input', e=>{ if(e.target.matches && e.target.matches('textarea.cell-ta')){ e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+2+'px'; } });
+document.addEventListener('keydown', e=>{ if(e.key==='Enter' && e.target.matches && e.target.matches('textarea.cell-ta')){ e.preventDefault(); e.target.blur(); } });
+window.addEventListener('resize', autosizeTextareas);
+function colgroup(ws){ return '<colgroup>'+ws.map(w=>`<col style="width:${w}%">`).join('')+'</colgroup>'; }
 function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
 
@@ -2171,6 +2195,7 @@ function syncTopScrollbar(){
   const topInner = document.getElementById('tableScrollTopInner');
   if(!realWrap){ topBar.style.display='none'; return; }
   topInner.style.width = realWrap.scrollWidth + 'px';
+  topBar.style.display = realWrap.scrollWidth > realWrap.clientWidth + 1 ? 'block' : 'none';   // only when something overflows
   let syncing = false;
   topBar.onscroll = ()=>{ if(syncing) return; syncing=true; realWrap.scrollLeft = topBar.scrollLeft; syncing=false; };
   realWrap.onscroll = ()=>{ if(syncing) return; syncing=true; topBar.scrollLeft = realWrap.scrollLeft; syncing=false; };
@@ -2912,13 +2937,14 @@ const GUEST_SORT_GETTERS = {
   attend: g=>({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend]||'',
   saveTheDate: g=>g.save_the_date_sent?'Sent':'Not sent',
   confirmed: g=>g.confirmed?'Confirmed':'Not confirmed',
+  declined: g=>g.declined?'Declined':'Not declined',
   notes: g=>g.notes||''
 };
 CF.register('guests', {
   rows:()=>guests,
   rerender:()=>renderGuests(),
   sort:{get:()=>({key:state.guestSortKey, dir:state.guestSortDir}), set:(k,d)=>{ state.guestSortKey=k; state.guestSortDir=d; renderGuests(); }},
-  cols:Object.fromEntries(Object.entries({...GUEST_SORT_GETTERS, saveTheDate:g=>g.save_the_date_sent?'Yes':'No', confirmed:g=>g.confirmed?'Yes':'No'}).map(([k,f])=>[k,{get:f}]))
+  cols:Object.fromEntries(Object.entries({...GUEST_SORT_GETTERS, saveTheDate:g=>g.save_the_date_sent?'Yes':'No', confirmed:g=>g.confirmed?'Yes':'No', declined:g=>g.declined?'Yes':'No'}).map(([k,f])=>[k,{get:f}]))
 });
 function guestSortTh(label, key){
   return CF.th('guests', key, label);
@@ -2936,6 +2962,10 @@ function visibleGuests(){
   }
   return list;
 }
+async function updateGuestPatch(id, patch){
+  await sb.from('guests').update(patch).eq('id', id);
+  await loadGuests(); renderGuests();
+}
 async function updateGuestField(id, field, value){
   await sb.from('guests').update({[field]: value}).eq('id', id);
   await loadGuests(); renderGuests();
@@ -2952,6 +2982,10 @@ function renderGuests(){
   const maybeCount = guests.filter(g=>g.attend==='maybe').length;
   const noCount = guests.filter(g=>g.attend==='no').length;
   const confirmedCount = guests.filter(g=>g.confirmed).length;
+  const sideCount = (pred, side)=>guests.filter(g=>pred(g) && g.side===side).length;
+  const stdP1 = sideCount(g=>g.save_the_date_sent,'partner1'), stdP2 = sideCount(g=>g.save_the_date_sent,'partner2'), stdBoth = sideCount(g=>g.save_the_date_sent,'both');
+  const declinedCount = guests.filter(g=>g.declined).length;
+  const decP1 = sideCount(g=>g.declined,'partner1'), decP2 = sideCount(g=>g.declined,'partner2'), decBoth = sideCount(g=>g.declined,'both');
   const confP1 = guests.filter(g=>g.confirmed && g.side==='partner1').length, confP2 = guests.filter(g=>g.confirmed && g.side==='partner2').length, confBoth = guests.filter(g=>g.confirmed && g.side==='both').length;
   const saveTheDateCount = guests.filter(g=>g.save_the_date_sent).length;
   const familyNames = [...new Set(guests.map(g=>(g.family||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
@@ -2965,15 +2999,16 @@ function renderGuests(){
   const allVisibleSelected = shownIds.length>0 && shownIds.every(id=>selectedGuestIds.has(id));
   const rows = shown.map(g=>`<tr>
       <td class="checkcell"><input type="checkbox" class="guest-check" data-guestid="${g.id}" ${selectedGuestIds.has(g.id)?'checked':''}></td>
-      <td><input type="text" class="cell-input" data-field="name" data-guestid="${g.id}" value="${escAttr(g.name)}"></td>
-      <td><input type="text" class="cell-input" data-field="family" data-guestid="${g.id}" value="${escAttr(g.family||'')}" placeholder="e.g. Perera family" list="guestFamilySuggestions"></td>
+      <td><textarea rows="1" class="cell-input cell-ta" data-field="name" data-guestid="${g.id}" title="${escAttr(g.name)}">${escAttr(g.name)}</textarea></td>
+      <td><input type="text" class="cell-input" data-field="family" data-guestid="${g.id}" value="${escAttr(g.family||'')}" title="${escAttr(g.family||'')}" placeholder="Family" list="guestFamilySuggestions"></td>
       <td><select class="cell-input side-${g.side}" data-field="side" data-guestid="${g.id}">${sideOptionsHTML(g.side)}</select></td>
-      <td><input type="text" class="cell-input" data-field="tag" data-guestid="${g.id}" value="${escAttr(g.tag||'')}" placeholder="e.g. Dad's guest"></td>
-      <td><input type="text" class="cell-input" data-field="contact" data-guestid="${g.id}" value="${escAttr(g.contact||'')}" placeholder="—"></td>
+      <td><textarea rows="1" class="cell-input cell-ta" data-field="tag" data-guestid="${g.id}" title="${escAttr(g.tag||'')}" placeholder="Tag">${escAttr(g.tag||'')}</textarea></td>
+      <td><textarea rows="1" class="cell-input cell-ta" data-field="contact" data-guestid="${g.id}" title="${escAttr(g.contact||'')}" placeholder="—">${escAttr(g.contact||'')}</textarea></td>
       <td><select class="cell-input attend-${g.attend}" data-field="attend" data-guestid="${g.id}">${attendOptionsHTML(g.attend)}</select></td>
       <td class="checkcell"><input type="checkbox" class="savethedate-check" data-guestid="${g.id}" ${g.save_the_date_sent?'checked':''}></td>
       <td class="checkcell"><input type="checkbox" class="confirm-check" data-guestid="${g.id}" ${g.confirmed?'checked':''}></td>
-      <td><input type="text" class="cell-input" data-field="notes" data-guestid="${g.id}" value="${escAttr(g.notes||'')}" placeholder="Add a note…"></td>
+      <td class="checkcell"><input type="checkbox" class="decline-check" data-guestid="${g.id}" ${g.declined?'checked':''}></td>
+      <td><textarea rows="1" class="cell-input cell-ta" data-field="notes" data-guestid="${g.id}" title="${escAttr(g.notes||'')}" placeholder="Note">${escAttr(g.notes||'')}</textarea></td>
       <td class="rmcell"><button class="rmbtn rmx" data-rmguest="${g.id}" title="Remove guest" aria-label="Remove guest">✕</button></td>
     </tr>`).join('');
   document.getElementById('tab-guests').innerHTML = `
@@ -2993,8 +3028,10 @@ function renderGuests(){
       <div class="dcard"><div class="dlabel">${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${drill({side:partnerName(1)},p1Count)} / ${drill({side:partnerName(2)},p2Count)} / ${drill({side:'Both'},bCount)}</div></div>
       <div class="dcard ${cardActive({family:'*'})}" data-gdrill="${drillAttr({family:'*'})}" style="cursor:pointer;" title="Show guests in a family"><div class="dlabel">Families</div><div class="dval">${familyNames.length}</div><div class="dsub">${drill({family:''},`${ungroupedCount} guest${ungroupedCount===1?'':'s'} not in a family`)}</div></div>
       <div class="dcard ${cardActive({saveTheDate:'Yes'})}" data-gdrill="${drillAttr({saveTheDate:'Yes'})}" style="cursor:pointer;" title="Show guests who have been sent a save the date"><div class="dlabel">Save the dates sent</div><div class="dval">${saveTheDateCount} <span style="font-size:14px;color:var(--ink-soft);">of ${guests.length}</span></div><div class="dsub">${drill({saveTheDate:'No'},`${guests.length-saveTheDateCount} not sent yet`)}</div></div>
+      <div class="dcard"><div class="dlabel">Save the dates sent: ${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${drill({saveTheDate:'Yes',side:partnerName(1)},stdP1)} / ${drill({saveTheDate:'Yes',side:partnerName(2)},stdP2)} / ${drill({saveTheDate:'Yes',side:'Both'},stdBoth)}</div></div>
       <div class="dcard ${cardActive({confirmed:'Yes'})}" data-gdrill="${drillAttr({confirmed:'Yes'})}" style="cursor:pointer;" title="Show confirmed guests"><div class="dlabel">Confirmed guests</div><div class="dval">${confirmedCount}</div></div>
       <div class="dcard"><div class="dlabel">Confirmed: ${partnerName(1)}'s / ${partnerName(2)}'s / Both</div><div class="dval" style="font-size:20px;">${drill({confirmed:'Yes',side:partnerName(1)},confP1)} / ${drill({confirmed:'Yes',side:partnerName(2)},confP2)} / ${drill({confirmed:'Yes',side:'Both'},confBoth)}</div></div>
+      <div class="dcard ${cardActive({declined:'Yes'})}" data-gdrill="${drillAttr({declined:'Yes'})}" style="cursor:pointer;" title="Show guests who have declined"><div class="dlabel">Declined guests</div><div class="dval">${declinedCount}</div><div class="dsub">${drill({declined:'Yes',side:partnerName(1)},`${partnerName(1)}'s ${decP1}`)} · ${drill({declined:'Yes',side:partnerName(2)},`${partnerName(2)}'s ${decP2}`)} · ${drill({declined:'Yes',side:'Both'},`Both ${decBoth}`)}</div></div>
       <div class="dcard"><div class="dlabel">Likely yes / maybe / no</div><div class="dval" style="font-size:18px;">${drill({attend:'Yes'},yesCount)} / ${drill({attend:'Maybe'},maybeCount)} / ${drill({attend:'No'},noCount)}</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${guests.length} guests${CF.clearLink('guests')}</p>
@@ -3004,9 +3041,10 @@ function renderGuests(){
       <select id="bulkAttend"><option value="">Set likely to attend…</option>${attendOptionsHTML(null)}</select>
       <button type="button" id="clearSelection">Clear selection</button>
     </div>` : ''}
-    <div class="tablewrap"><table class="plain-table">
-      <tr><th class="checkcell"><input type="checkbox" id="guestSelectAll" ${allVisibleSelected?'checked':''}></th>${guestSortTh('Name','name')}${guestSortTh('Family','family')}${guestSortTh('Whose guest','side')}${guestSortTh('Tag','tag')}${guestSortTh('Contact','contact')}${guestSortTh('Likely to attend','attend')}${guestSortTh('Save the date','saveTheDate')}${guestSortTh('Confirmed','confirmed')}${guestSortTh('Notes','notes')}<th></th></tr>
-      ${rows || '<tr><td colspan="11" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
+    <div class="tablewrap fit"><table class="plain-table fit">
+      ${colgroup([3,14,12,10,8,11,8,6,6,6,13,3])}
+      <tr><th class="checkcell"><input type="checkbox" id="guestSelectAll" ${allVisibleSelected?'checked':''}></th>${guestSortTh('Name','name')}${guestSortTh('Family','family')}${guestSortTh('Whose guest','side')}${guestSortTh('Tag','tag')}${guestSortTh('Contact','contact')}${guestSortTh('Likely to attend','attend')}${guestSortTh('Save the date','saveTheDate')}${guestSortTh('Confirmed','confirmed')}${guestSortTh('Declined','declined')}${guestSortTh('Notes','notes')}<th></th></tr>
+      ${rows || '<tr><td colspan="12" style="text-align:center;color:var(--ink-soft);padding:24px;">No guests match.</td></tr>'}
     </table>
     <datalist id="guestFamilySuggestions">${familyNames.map(f=>`<option value="${escAttr(f)}">`).join('')}</datalist></div>`;
   document.querySelectorAll('#tab-guests [data-gdrill]').forEach(el=>el.addEventListener('click', e=>{
@@ -3043,6 +3081,7 @@ function renderGuests(){
       const familyCol = findCol(sample, ['family','family group','household']);
       const attendCol = findCol(sample, ['likely to attend','attend','attending']);
       const confirmedCol = findCol(sample, ['confirmed','rsvp confirmed','is confirmed']);
+      const declinedCol = findCol(sample, ['declined','not attending','declined rsvp']);
       const saveTheDateCol = findCol(sample, ['save the date sent','save the date']);
       const contactCol = findCol(sample, ['contact','email','phone']);
       const notesCol = findCol(sample, ['notes','note']);
@@ -3055,6 +3094,7 @@ function renderGuests(){
         const rawSide = sideCol ? (r[sideCol]||'').toString().trim().toLowerCase() : '';
         const rawAttend = attendCol ? (r[attendCol]||'').toString().trim().toLowerCase() : '';
         const rawConfirmed = confirmedCol ? (r[confirmedCol]||'').toString().trim().toLowerCase() : '';
+        const rawDeclined = declinedCol ? (r[declinedCol]||'').toString().trim().toLowerCase() : '';
         const rawSaveTheDate = saveTheDateCol ? (r[saveTheDateCol]||'').toString().trim().toLowerCase() : '';
         return {
           wedding_id: weddingId, name,
@@ -3062,7 +3102,8 @@ function renderGuests(){
           family: familyCol ? (r[familyCol]||'').toString().trim() : '',
           tag: tagCol ? (r[tagCol]||'').toString().trim() : '',
           attend: attendMap[rawAttend] || 'maybe',
-          confirmed: truthy.includes(rawConfirmed),
+          confirmed: truthy.includes(rawConfirmed) && !truthy.includes(rawDeclined),
+          declined: truthy.includes(rawDeclined),
           save_the_date_sent: truthy.includes(rawSaveTheDate),
           contact: contactCol ? (r[contactCol]||'').toString().trim() : '',
           notes: notesCol ? (r[notesCol]||'').toString().trim() : ''
@@ -3079,8 +3120,8 @@ function renderGuests(){
     e.target.value='';
   });
   const guestExportAoa = ()=>{
-    const header=['Name','Family','Whose guest','Tag','Contact','Likely to attend','Save the date sent','Confirmed','Notes'];
-    return [header, ...shown.map(g=>[g.name, g.family||'', g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.tag||'', g.contact||'', ({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend], g.save_the_date_sent?'Yes':'No', g.confirmed?'Yes':'No', g.notes||''])];
+    const header=['Name','Family','Whose guest','Tag','Contact','Likely to attend','Save the date sent','Confirmed','Declined','Notes'];
+    return [header, ...shown.map(g=>[g.name, g.family||'', g.side==='both'?'Both':(g.side==='partner1'?partnerName(1)+"'s":partnerName(2)+"'s"), g.tag||'', g.contact||'', ({yes:'Yes',no:'No',maybe:'Maybe'})[g.attend], g.save_the_date_sent?'Yes':'No', g.confirmed?'Yes':'No', g.declined?'Yes':'No', g.notes||''])];
   };
   document.getElementById('exportGuestsBtn').addEventListener('click', ()=>{
     exportRowsToExcel('guest-list.xlsx','Guests',guestExportAoa());
@@ -3127,7 +3168,10 @@ function renderGuests(){
     updateGuestField(cb.dataset.guestid, 'save_the_date_sent', cb.checked);
   }));
   document.querySelectorAll('.confirm-check').forEach(cb=>cb.addEventListener('change', ()=>{
-    updateGuestField(cb.dataset.guestid, 'confirmed', cb.checked);
+    updateGuestPatch(cb.dataset.guestid, cb.checked ? {confirmed:true, declined:false} : {confirmed:false});
+  }));
+  document.querySelectorAll('.decline-check').forEach(cb=>cb.addEventListener('change', ()=>{
+    updateGuestPatch(cb.dataset.guestid, cb.checked ? {declined:true, confirmed:false} : {declined:false});
   }));
   const selectAllEl = document.getElementById('guestSelectAll');
   if(selectAllEl) selectAllEl.addEventListener('change', ()=>{
@@ -3141,8 +3185,11 @@ function renderGuests(){
   if(bulkAttendEl) bulkAttendEl.addEventListener('change', ()=>{ if(bulkAttendEl.value) bulkUpdateGuests('attend', bulkAttendEl.value); });
   const clearSelEl = document.getElementById('clearSelection');
   if(clearSelEl) clearSelEl.addEventListener('click', ()=>{ selectedGuestIds.clear(); renderGuests(); });
+  autosizeTextareas(); requestAnimationFrame(autosizeTextareas);
 }
 const guestOverlay = document.getElementById('guestOverlay');
+document.getElementById('g_confirmed').addEventListener('change', e=>{ if(e.target.checked) document.getElementById('g_declined').checked=false; });
+document.getElementById('g_declined').addEventListener('change', e=>{ if(e.target.checked) document.getElementById('g_confirmed').checked=false; });
 document.getElementById('cancelGuest').addEventListener('click', ()=>guestOverlay.classList.remove('show'));
 document.getElementById('saveGuest').addEventListener('click', async ()=>{
   const name = document.getElementById('g_name').value.trim();
@@ -3153,11 +3200,13 @@ document.getElementById('saveGuest').addEventListener('click', async ()=>{
     tag: document.getElementById('g_tag').value.trim(),
     attend:document.getElementById('g_attend').value,
     confirmed: document.getElementById('g_confirmed').checked,
+    declined: document.getElementById('g_declined').checked,
     save_the_date_sent: document.getElementById('g_savethedate').checked,
     contact:document.getElementById('g_contact').value.trim(), notes:document.getElementById('g_notes').value.trim()
   });
   ['g_name','g_family','g_tag','g_contact','g_notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('g_confirmed').checked = false;
+  document.getElementById('g_declined').checked = false;
   document.getElementById('g_savethedate').checked = false;
   guestOverlay.classList.remove('show');
   await loadGuests(); renderGuests();
@@ -3242,13 +3291,13 @@ function renderBudget(){
   const rows = shown.map(b=>{
     const vendorOptionsHTML = `<option value="">— None —</option>` + vendors.map(v=>`<option value="${v.id}" ${b.vendorId===v.id?'selected':''}>${escAttr(v.name)}</option>`).join('');
     return `<tr>
-      <td><input type="text" class="cell-input cell-input-wide" data-field="cat" data-budgetid="${b.id}" value="${escAttr(b.cat)}"></td>
+      <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-field="cat" data-budgetid="${b.id}">${escAttr(b.cat)}</textarea></td>
       <td><select class="cell-input cell-input-wide" data-field="vendorId" data-budgetid="${b.id}">${vendorOptionsHTML}</select>${!b.vendorId && b.sourceVenueName ? `<div style="font-size:10px;color:var(--ink-soft);margin-top:2px;">from venue: ${b.sourceVenueName}</div>` : ''}</td>
       <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div></td>
       <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div></td>
       <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
       <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
-      <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Add a comment…"></td>
+      <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-field="notes" data-budgetid="${b.id}" placeholder="Add a comment…">${escAttr(b.notes||'')}</textarea></td>
       <td class="rmcell"><button class="rmbtn rmx" data-rmbudget="${b.id}" title="Remove" aria-label="Remove">✕</button></td>
     </tr>`;
   }).join('');
@@ -3275,7 +3324,8 @@ function renderBudget(){
       <div class="dcard"><div class="dlabel">Funding balance (£)</div><div class="dval" style="color:${fundingBalanceGbp<0?'var(--flag)':'var(--win)'}">${fmtCurrencyAmount(fundingBalanceGbp,'gbp')}</div><div class="dsub">received minus spent so far — always in GBP</div></div>
     </div>
     <p class="result-count">Showing ${shown.length} of ${budgetItems.length} lines${CF.clearLink('budget')}</p>
-    <div class="tablewrap"><table class="plain-table">
+    <div class="tablewrap fit"><table class="plain-table fit">
+      ${colgroup([15,17,12,15,6,15,16,4])}
       <tr>${CF.th('budget','cat','Category')}${CF.th('budget','vendor','Vendor')}${CF.th('budget','actual','Amount GBP')}${CF.th('budget','actualLkr','Amount LKR')}${CF.th('budget','paid','Paid')}${CF.th('budget','dueDate','Due date')}${CF.th('budget','notes','Comments')}<th></th></tr>
       ${rows || '<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);padding:24px;">No budget lines match.</td></tr>'}
     </table></div>
@@ -3284,14 +3334,15 @@ function renderBudget(){
       <button class="btn ghost small" id="addContributionBtn" style="width:auto;">+ Add contribution</button>
     </div>
     <p class="result-count">Showing ${shownContribs.length} of ${contributions.length} contributions${CF.clearLink('contrib')}</p>
-    <div class="tablewrap"><table class="plain-table">
+    <div class="tablewrap fit"><table class="plain-table fit">
+      ${colgroup([22,16,18,18,22,4])}
       <tr>${CF.th('contrib','contributor','From')}${CF.th('contrib','amountGbp','Amount GBP')}${CF.th('contrib','amountLkr','Amount LKR')}${CF.th('contrib','dateReceived','Date received')}${CF.th('contrib','notes','Notes')}<th></th></tr>
       ${shownContribs.map(c=>`<tr>
-        <td><input type="text" class="cell-input cell-input-wide" data-ctfield="contributor" data-ctid="${c.id}" value="${escAttr(c.contributor)}"></td>
+        <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-ctfield="contributor" data-ctid="${c.id}">${escAttr(c.contributor)}</textarea></td>
         <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountGbp" data-ctid="${c.id}" value="${formatNumInput(c.amountGbp)}"></div></td>
         <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountLkr" data-ctid="${c.id}" value="${formatNumInput(c.amountLkr)}"></div></td>
         <td><input type="date" class="cell-input" data-ctfield="dateReceived" data-ctid="${c.id}" value="${c.dateReceived||''}"></td>
-        <td><input type="text" class="cell-input cell-input-wide" data-ctfield="notes" data-ctid="${c.id}" value="${escAttr(c.notes||'')}" placeholder="Add a note…"></td>
+        <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-ctfield="notes" data-ctid="${c.id}" placeholder="Add a note…">${escAttr(c.notes||'')}</textarea></td>
         <td class="rmcell"><button class="rmbtn rmx" data-rmcontrib="${c.id}" title="Remove" aria-label="Remove">✕</button></td>
       </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:24px;">No contributions logged yet.</td></tr>'}
     </table></div>`;
@@ -3326,6 +3377,7 @@ function renderBudget(){
     const value = el.classList.contains('num-input') ? parseNumInput(el.value) : el.value.trim();
     updateContributionField(el.dataset.ctid, el.dataset.ctfield, value);
   }));
+  autosizeTextareas(); requestAnimationFrame(autosizeTextareas);
   budgetTabEl.querySelectorAll('[data-rmcontrib]').forEach(b=>b.addEventListener('click', async ()=>{
     await sb.from('contributions').delete().eq('id', b.dataset.rmcontrib); await loadContributions(); renderBudget();
   }));
@@ -3485,7 +3537,7 @@ function vendorPaymentRowHTML(b){
     <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div></td>
     <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
     <td class="statuscell">${dueDateBadge(b.dueDate, b.paid)}</td>
-    <td><input type="text" class="cell-input cell-input-wide" data-field="notes" data-budgetid="${b.id}" value="${escAttr(b.notes||'')}" placeholder="Comment…"></td>
+    <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-field="notes" data-budgetid="${b.id}" placeholder="Comment…">${escAttr(b.notes||'')}</textarea></td>
     <td class="rmcell"><button class="rmbtn rmx" data-rmbudget="${b.id}" title="Remove" aria-label="Remove">✕</button></td>
   </tr>`;
 }
@@ -3525,7 +3577,8 @@ function renderVendorDrawer(){
       </div>
       <input type="text" class="cell-input" data-vendorfield="notes" data-vendorid="${v.id}" value="${escAttr(v.notes)}" placeholder="Notes" style="width:100%;margin-top:8px;">
       <h3 style="font-size:16px;margin:22px 0 4px;">Payments</h3>
-      ${payments.length ? `<div class="tablewrap"><table class="plain-table pay-table">
+      ${payments.length ? `<div class="tablewrap fit"><table class="plain-table pay-table fit">
+        ${colgroup([14,15,14,16,5,17,15,4])}
         <tr><th>Tag</th><th>Due date</th><th>Amount GBP</th><th>Amount LKR</th><th>Paid</th><th>Status</th><th>Comments</th><th></th></tr>
         ${payments.map(vendorPaymentRowHTML).join('')}
       </table></div>` : '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:6px;">No payments logged yet.</p>'}
@@ -3558,6 +3611,7 @@ function renderVendorDrawer(){
   }));
   pane.querySelectorAll('[data-rmvendor]').forEach(b=>b.addEventListener('click', ()=>deleteVendor(b.dataset.rmvendor)));
   pane.querySelectorAll('[data-addpayment]').forEach(b=>b.addEventListener('click', ()=>addVendorPayment(b.dataset.addpayment)));
+  autosizeTextareas(); requestAnimationFrame(autosizeTextareas);
   restoreFocus(focus);
 }
 function renderVendors(){
