@@ -220,7 +220,10 @@ table.fit td{padding:7px 6px;vertical-align:middle;}
 table.fit td.checkcell,table.fit th.checkcell{width:auto;padding-left:6px;padding-right:6px;}
 table.fit td.rmcell{width:auto;padding-left:2px;padding-right:2px;text-align:center;}
 table.fit .cell-input,table.fit .cell-input.cell-input-wide,table.fit .num-input{min-width:0;font-size:12px;padding:5px 6px;text-overflow:ellipsis;}
-textarea.cell-ta{display:block;resize:none;overflow:hidden;line-height:1.35;font-family:inherit;white-space:pre-wrap;overflow-wrap:anywhere;}
+/* Auto-growing text box with no JavaScript measuring: a hidden copy of the text sets the height */
+.grow{display:grid;}
+.grow::after{content:attr(data-v) ' ';grid-area:1/1/2/2;visibility:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:12px;line-height:1.35;padding:5px 6px;border:1px solid transparent;}
+.grow>textarea.cell-ta{grid-area:1/1/2/2;display:block;resize:none;overflow:hidden;height:100%;min-height:0;line-height:1.35;font-family:inherit;white-space:pre-wrap;overflow-wrap:anywhere;}
 table.fit select.cell-input{min-width:0;padding-right:20px;background-position:right 6px center;}
 table.fit .amt-wrap{min-width:0;}
 table.fit .amt-wrap input{padding-left:21px !important;}
@@ -1345,12 +1348,8 @@ document.querySelectorAll('#currencyToggle [data-currency]').forEach(btn=>btn.ad
   saveWeddingField({display_currency:c});
   renderActive();
 }));
-function autosizeTextareas(){
-  document.querySelectorAll('textarea.cell-ta').forEach(t=>{ t.style.height='auto'; if(t.scrollHeight) t.style.height=t.scrollHeight+2+'px'; });
-}
-document.addEventListener('input', e=>{ if(e.target.matches && e.target.matches('textarea.cell-ta')){ e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+2+'px'; } });
+document.addEventListener('input', e=>{ if(e.target.matches && e.target.matches('textarea.cell-ta') && e.target.parentNode) e.target.parentNode.dataset.v = e.target.value; });   // the hidden copy drives the box height
 document.addEventListener('keydown', e=>{ if(e.key==='Enter' && e.target.matches && e.target.matches('textarea.cell-ta')){ e.preventDefault(); e.target.blur(); } });
-window.addEventListener('resize', autosizeTextareas);
 function drillJson(t, spec, sort){ return escAttr(JSON.stringify({t, spec, sort:sort||null})); }
 function colgroup(ws){ return '<colgroup>'+ws.map(w=>`<col style="width:${w}%">`).join('')+'</colgroup>'; }
 function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -3016,16 +3015,16 @@ function renderGuests(){
   const allVisibleSelected = shownIds.length>0 && shownIds.every(id=>selectedGuestIds.has(id));
   const rows = shown.map(g=>`<tr>
       <td class="checkcell"><input type="checkbox" class="guest-check" data-guestid="${g.id}" ${selectedGuestIds.has(g.id)?'checked':''}></td>
-      <td><textarea rows="1" class="cell-input cell-ta" data-field="name" data-guestid="${g.id}" title="${escAttr(g.name)}">${escAttr(g.name)}</textarea></td>
+      <td><div class="grow" data-v="${escAttr(g.name)}"><textarea rows="1" class="cell-input cell-ta" data-field="name" data-guestid="${g.id}" title="${escAttr(g.name)}">${escAttr(g.name)}</textarea></div></td>
       <td><input type="text" class="cell-input" data-field="family" data-guestid="${g.id}" value="${escAttr(g.family||'')}" title="${escAttr(g.family||'')}" placeholder="Family" list="guestFamilySuggestions"></td>
       <td><select class="cell-input side-${g.side}" data-field="side" data-guestid="${g.id}">${sideOptionsHTML(g.side)}</select></td>
-      <td><textarea rows="1" class="cell-input cell-ta" data-field="tag" data-guestid="${g.id}" title="${escAttr(g.tag||'')}" placeholder="Tag">${escAttr(g.tag||'')}</textarea></td>
-      <td><textarea rows="1" class="cell-input cell-ta" data-field="contact" data-guestid="${g.id}" title="${escAttr(g.contact||'')}" placeholder="—">${escAttr(g.contact||'')}</textarea></td>
+      <td><div class="grow" data-v="${escAttr(g.tag||'')}"><textarea rows="1" class="cell-input cell-ta" data-field="tag" data-guestid="${g.id}" title="${escAttr(g.tag||'')}" placeholder="Tag">${escAttr(g.tag||'')}</textarea></div></td>
+      <td><div class="grow" data-v="${escAttr(g.contact||'')}"><textarea rows="1" class="cell-input cell-ta" data-field="contact" data-guestid="${g.id}" title="${escAttr(g.contact||'')}" placeholder="—">${escAttr(g.contact||'')}</textarea></div></td>
       <td><select class="cell-input attend-${g.attend}" data-field="attend" data-guestid="${g.id}">${attendOptionsHTML(g.attend)}</select></td>
       <td class="checkcell"><input type="checkbox" class="savethedate-check" data-guestid="${g.id}" ${g.save_the_date_sent?'checked':''}></td>
       <td class="checkcell"><input type="checkbox" class="confirm-check" data-guestid="${g.id}" ${g.confirmed?'checked':''}></td>
       <td class="checkcell"><input type="checkbox" class="decline-check" data-guestid="${g.id}" ${g.declined?'checked':''}></td>
-      <td><textarea rows="1" class="cell-input cell-ta" data-field="notes" data-guestid="${g.id}" title="${escAttr(g.notes||'')}" placeholder="Note">${escAttr(g.notes||'')}</textarea></td>
+      <td><div class="grow" data-v="${escAttr(g.notes||'')}"><textarea rows="1" class="cell-input cell-ta" data-field="notes" data-guestid="${g.id}" title="${escAttr(g.notes||'')}" placeholder="Note">${escAttr(g.notes||'')}</textarea></div></td>
       <td class="rmcell"><button class="rmbtn rmx" data-rmguest="${g.id}" title="Remove guest" aria-label="Remove guest">✕</button></td>
     </tr>`).join('');
   document.getElementById('tab-guests').innerHTML = `
@@ -3202,7 +3201,6 @@ function renderGuests(){
   if(bulkAttendEl) bulkAttendEl.addEventListener('change', ()=>{ if(bulkAttendEl.value) bulkUpdateGuests('attend', bulkAttendEl.value); });
   const clearSelEl = document.getElementById('clearSelection');
   if(clearSelEl) clearSelEl.addEventListener('click', ()=>{ selectedGuestIds.clear(); renderGuests(); });
-  autosizeTextareas(); requestAnimationFrame(autosizeTextareas);
 }
 const guestOverlay = document.getElementById('guestOverlay');
 document.getElementById('g_confirmed').addEventListener('change', e=>{ if(e.target.checked) document.getElementById('g_declined').checked=false; });
@@ -3308,13 +3306,13 @@ function renderBudget(){
   const rows = shown.map(b=>{
     const vendorOptionsHTML = `<option value="">— None —</option>` + vendors.map(v=>`<option value="${v.id}" ${b.vendorId===v.id?'selected':''}>${escAttr(v.name)}</option>`).join('');
     return `<tr>
-      <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-field="cat" data-budgetid="${b.id}">${escAttr(b.cat)}</textarea></td>
+      <td><div class="grow" data-v="${escAttr(b.cat)}"><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-field="cat" data-budgetid="${b.id}">${escAttr(b.cat)}</textarea></div></td>
       <td><select class="cell-input cell-input-wide" data-field="vendorId" data-budgetid="${b.id}">${vendorOptionsHTML}</select>${!b.vendorId && b.sourceVenueName ? `<div style="font-size:10px;color:var(--ink-soft);margin-top:2px;">from venue: ${b.sourceVenueName}</div>` : ''}</td>
       <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actual" data-budgetid="${b.id}" value="${formatNumInput(b.actual)}"></div></td>
       <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div></td>
       <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
       <td><input type="date" class="cell-input" data-field="dueDate" data-budgetid="${b.id}" value="${b.dueDate||''}"></td>
-      <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-field="notes" data-budgetid="${b.id}" placeholder="Add a comment…">${escAttr(b.notes||'')}</textarea></td>
+      <td><div class="grow" data-v="${escAttr(b.notes||'')}"><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-field="notes" data-budgetid="${b.id}" placeholder="Add a comment…">${escAttr(b.notes||'')}</textarea></div></td>
       <td class="rmcell"><button class="rmbtn rmx" data-rmbudget="${b.id}" title="Remove" aria-label="Remove">✕</button></td>
     </tr>`;
   }).join('');
@@ -3355,11 +3353,11 @@ function renderBudget(){
       ${colgroup([22,16,18,18,22,4])}
       <tr>${CF.th('contrib','contributor','From')}${CF.th('contrib','amountGbp','Amount GBP')}${CF.th('contrib','amountLkr','Amount LKR')}${CF.th('contrib','dateReceived','Date received')}${CF.th('contrib','notes','Notes')}<th></th></tr>
       ${shownContribs.map(c=>`<tr>
-        <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-ctfield="contributor" data-ctid="${c.id}">${escAttr(c.contributor)}</textarea></td>
+        <td><div class="grow" data-v="${escAttr(c.contributor)}"><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-ctfield="contributor" data-ctid="${c.id}">${escAttr(c.contributor)}</textarea></div></td>
         <td><div class="amt-wrap" data-symbol="£"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountGbp" data-ctid="${c.id}" value="${formatNumInput(c.amountGbp)}"></div></td>
         <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-ctfield="amountLkr" data-ctid="${c.id}" value="${formatNumInput(c.amountLkr)}"></div></td>
         <td><input type="date" class="cell-input" data-ctfield="dateReceived" data-ctid="${c.id}" value="${c.dateReceived||''}"></td>
-        <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-ctfield="notes" data-ctid="${c.id}" placeholder="Add a note…">${escAttr(c.notes||'')}</textarea></td>
+        <td><div class="grow" data-v="${escAttr(c.notes||'')}"><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-ctfield="notes" data-ctid="${c.id}" placeholder="Add a note…">${escAttr(c.notes||'')}</textarea></div></td>
         <td class="rmcell"><button class="rmbtn rmx" data-rmcontrib="${c.id}" title="Remove" aria-label="Remove">✕</button></td>
       </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:24px;">No contributions logged yet.</td></tr>'}
     </table></div>`;
@@ -3394,7 +3392,6 @@ function renderBudget(){
     const value = el.classList.contains('num-input') ? parseNumInput(el.value) : el.value.trim();
     updateContributionField(el.dataset.ctid, el.dataset.ctfield, value);
   }));
-  autosizeTextareas(); requestAnimationFrame(autosizeTextareas);
   budgetTabEl.querySelectorAll('[data-drill]').forEach(el=>el.addEventListener('click', ()=>{
     CF.applyDrill(JSON.parse(el.dataset.drill));
     const w=document.querySelector('#tab-budget .tablewrap'); if(w) w.scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -3561,7 +3558,7 @@ function vendorPaymentRowHTML(b){
     <td><div class="amt-wrap" data-symbol="Rs"><input type="text" inputmode="decimal" class="num-input" data-budgetfield="actualLkr" data-budgetid="${b.id}" value="${formatNumInput(b.actualLkr)}"></div></td>
     <td class="checkcell"><input type="checkbox" class="paid-check" data-budgetid="${b.id}" ${b.paid?'checked':''}></td>
     <td class="statuscell">${dueDateBadge(b.dueDate, b.paid)}</td>
-    <td><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-field="notes" data-budgetid="${b.id}" placeholder="Comment…">${escAttr(b.notes||'')}</textarea></td>
+    <td><div class="grow" data-v="${escAttr(b.notes||'')}"><textarea rows="1" class="cell-input cell-input-wide cell-ta" data-field="notes" data-budgetid="${b.id}" placeholder="Comment…">${escAttr(b.notes||'')}</textarea></div></td>
     <td class="rmcell"><button class="rmbtn rmx" data-rmbudget="${b.id}" title="Remove" aria-label="Remove">✕</button></td>
   </tr>`;
 }
@@ -3635,7 +3632,6 @@ function renderVendorDrawer(){
   }));
   pane.querySelectorAll('[data-rmvendor]').forEach(b=>b.addEventListener('click', ()=>deleteVendor(b.dataset.rmvendor)));
   pane.querySelectorAll('[data-addpayment]').forEach(b=>b.addEventListener('click', ()=>addVendorPayment(b.dataset.addpayment)));
-  autosizeTextareas(); requestAnimationFrame(autosizeTextareas);
   restoreFocus(focus);
 }
 function renderVendors(){
